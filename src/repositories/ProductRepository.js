@@ -31,7 +31,7 @@ class ProductRepository {
       const [result] = await conn.query(
         `INSERT INTO products 
          (branch_id, code, name, category, subcategory, description, manufacturer, cost_price, selling_price, discount_percentage, hsn_code, tax_percentage, barcode, unit, min_stock, max_stock, is_active) 
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`,
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`,
         [branchId, code, name, category, subcategory || null, description || null, manufacturer || null, costPrice, sellingPrice, discountPercentage || 0, hsnCode || null, taxPercentage || 0, barcode || null, unit || 'pcs', minStock || 5, maxStock || 100]
       );
       const prodId = result.insertId;

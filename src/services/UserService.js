@@ -1,4 +1,5 @@
 const UserRepository = require('../repositories/UserRepository');
+const SettingsRepository = require('../repositories/SettingsRepository');
 const bcrypt = require('bcryptjs');
 const CustomError = require('../utils/customError');
 const { signToken } = require('../utils/jwt');
@@ -62,6 +63,10 @@ class UserService {
     // Remove password
     const userResult = { ...user };
     delete userResult.password;
+    
+    // Inject company details
+    const companyDetails = await SettingsRepository.getCompanyDetails();
+    userResult.companyDetails = companyDetails || null;
 
     return { user: userResult, token };
   }
@@ -72,6 +77,11 @@ class UserService {
       throw new CustomError('User not found', 404);
     }
     delete user.password;
+    
+    // Inject company details
+    const companyDetails = await SettingsRepository.getCompanyDetails();
+    user.companyDetails = companyDetails || null;
+    
     return user;
   }
 

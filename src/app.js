@@ -42,6 +42,7 @@ const saleRoutes = require('./routes/saleRoutes');
 const prescriptionRoutes = require('./routes/prescriptionRoutes');
 const labOrderRoutes = require('./routes/labOrderRoutes');
 const analyticsRoutes = require('./routes/analyticsRoutes');
+const settingsRoutes = require('./routes/settingsRoutes');
 
 // --- ROUTERS SECTION ---
 app.use('/api/auth', authRoutes);
@@ -52,6 +53,7 @@ app.use('/api/sales', saleRoutes);
 app.use('/api/prescriptions', prescriptionRoutes);
 app.use('/api/lab-orders', labOrderRoutes);
 app.use('/api/analytics', analyticsRoutes);
+app.use('/api/settings', settingsRoutes);
 
 // Handle 404 Route Not Found
 app.all('*', (req, res, next) => {
