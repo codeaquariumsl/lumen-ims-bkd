@@ -1,6 +1,7 @@
 CREATE DATABASE IF NOT EXISTS `optical_mis`;
 USE `optical_mis`;
 
+DROP TABLE IF EXISTS `settings`;
 DROP TABLE IF EXISTS `audit_logs`;
 DROP TABLE IF EXISTS `purchase_order_items`;
 DROP TABLE IF EXISTS `purchase_orders`;
@@ -14,6 +15,14 @@ DROP TABLE IF EXISTS `products`;
 DROP TABLE IF EXISTS `customers`;
 DROP TABLE IF EXISTS `users`;
 DROP TABLE IF EXISTS `branches`;
+
+-- Settings Table
+CREATE TABLE IF NOT EXISTS `settings` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `setting_key` VARCHAR(100) NOT NULL UNIQUE,
+  `setting_value` TEXT,
+  `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Branches Table
 CREATE TABLE IF NOT EXISTS `branches` (
@@ -185,6 +194,8 @@ CREATE TABLE IF NOT EXISTS `prescriptions` (
   `pd` DECIMAL(5,2) NULL,
   `intermediate_add` DECIMAL(5,2) NULL,
   `near_pd` DECIMAL(5,2) NULL,
+  `fitting_height` DECIMAL(5,2) NULL,
+  `segment_height` DECIMAL(5,2) NULL,
   `remarks` TEXT NULL,
   `prescription_type` VARCHAR(50) NULL,
   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
