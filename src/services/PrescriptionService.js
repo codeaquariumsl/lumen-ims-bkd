@@ -43,6 +43,12 @@ class PrescriptionService {
     return prescription;
   }
 
+  async updatePrescription(id, prescriptionData) {
+    // Verify it exists
+    await this.getPrescriptionById(id);
+    return PrescriptionRepository.update(id, prescriptionData);
+  }
+
   async getAllPrescriptions(filters) {
     const page = parseInt(filters.page || '1');
     const limit = parseInt(filters.limit || '10');

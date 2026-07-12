@@ -39,6 +39,15 @@ class PrescriptionController {
     }
   }
 
+  async update(req, res, next) {
+    try {
+      const prescription = await PrescriptionService.updatePrescription(req.params.id, req.body);
+      return sendResponse(res, 200, true, 'Prescription updated successfully', prescription);
+    } catch (error) {
+      next(error);
+    }
+  }
+
   async delete(req, res, next) {
     try {
       await PrescriptionService.deletePrescription(req.params.id);
