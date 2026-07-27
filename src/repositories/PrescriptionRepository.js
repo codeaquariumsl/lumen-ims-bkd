@@ -1,6 +1,33 @@
 const db = require('../config/database');
 
 class PrescriptionRepository {
+  async generateNextPrescriptionNumber(dateStr) {
+    const d = dateStr ? new Date(dateStr) : new Date();
+    const yy = d.getFullYear().toString().slice(-2);
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const prefix = `${yy}${mm}`; // e.g. "2607"
+
+    const [rows] = await db.query(
+      `SELECT prescription_number FROM prescriptions 
+       WHERE prescription_number LIKE ? 
+       ORDER BY prescription_number DESC LIMIT 1`,
+      [`${prefix}%`]
+    );
+
+    let nextSeq = 1;
+    if (rows.length > 0 && rows[0].prescription_number) {
+      const lastNum = String(rows[0].prescription_number);
+      const seqPart = lastNum.slice(4); // digits after YYMM
+      const parsed = parseInt(seqPart, 10);
+      if (!isNaN(parsed)) {
+        nextSeq = parsed + 1;
+      }
+    }
+
+    const seqStr = String(nextSeq).padStart(4, '0');
+    return `${prefix}${seqStr}`; // e.g. "26070001"
+  }
+
   async findById(id) {
     const [rows] = await db.query(
       `SELECT p.*, c.first_name, c.last_name, c.phone as customer_phone, u.name as optometrist_name 
@@ -21,15 +48,17 @@ class PrescriptionRepository {
       pd, intermediateAdd, nearPd, fittingHeight, segmentHeight, remarks, prescriptionType
     } = prescription;
 
+    const prescriptionNumber = prescription.prescriptionNumber || await this.generateNextPrescriptionNumber(prescriptionDate);
+
     const [result] = await db.query(
       `INSERT INTO prescriptions 
-       (branch_id, customer_id, optometrist_id, prescription_date, expiry_date,
+       (prescription_number, branch_id, customer_id, optometrist_id, prescription_date, expiry_date,
         od_sph, od_cyl, od_axis, od_add, od_prism, od_base,
         os_sph, os_cyl, os_axis, os_add, os_prism, os_base,
         pd, intermediate_add, near_pd, fitting_height, segment_height, remarks, prescription_type) 
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
-        branchId, customerId, optometristId || null, prescriptionDate, expiryDate || null,
+        prescriptionNumber, branchId, customerId, optometristId || null, prescriptionDate, expiryDate || null,
         od_sph !== undefined ? od_sph : 0.00, od_cyl !== undefined ? od_cyl : 0.00, od_axis || 0, od_add !== undefined ? od_add : 0.00, od_prism !== undefined ? od_prism : 0.00, od_base || null,
         os_sph !== undefined ? os_sph : 0.00, os_cyl !== undefined ? os_cyl : 0.00, os_axis || 0, os_add !== undefined ? os_add : 0.00, os_prism !== undefined ? os_prism : 0.00, os_base || null,
         pd || 62.00, intermediateAdd !== undefined ? intermediateAdd : 0.00, nearPd !== undefined ? nearPd : 0.00, fittingHeight !== undefined ? fittingHeight : null, segmentHeight !== undefined ? segmentHeight : null, remarks || null, prescriptionType || 'single'
@@ -100,10 +129,10 @@ class PrescriptionRepository {
 
     if (search) {
       const searchPattern = `%${search}%`;
-      query += ' AND (c.first_name LIKE ? OR c.last_name LIKE ? OR c.phone LIKE ?)';
-      countQuery += ' AND (c.first_name LIKE ? OR c.last_name LIKE ? OR c.phone LIKE ?)';
-      params.push(searchPattern, searchPattern, searchPattern);
-      countParams.push(searchPattern, searchPattern, searchPattern);
+      query += ' AND (p.prescription_number LIKE ? OR c.first_name LIKE ? OR c.last_name LIKE ? OR c.phone LIKE ?)';
+      countQuery += ' AND (p.prescription_number LIKE ? OR c.first_name LIKE ? OR c.last_name LIKE ? OR c.phone LIKE ?)';
+      params.push(searchPattern, searchPattern, searchPattern, searchPattern);
+      countParams.push(searchPattern, searchPattern, searchPattern, searchPattern);
     }
 
     query += ' ORDER BY p.prescription_date DESC, p.created_at DESC LIMIT ? OFFSET ?';

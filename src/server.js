@@ -6,11 +6,23 @@ dotenv.config();
 
 const PORT = process.env.PORT || 5000;
 
-// Test DB Connection
+// Test DB Connection & Run Auto Migrations
 async function testDbConnection() {
   try {
     const connection = await pool.getConnection();
     console.log('MySQL Database connection established successfully.');
+    
+    // Auto-migrate prescription_number column if missing
+    try {
+      const [cols] = await connection.query(`SHOW COLUMNS FROM prescriptions LIKE 'prescription_number'`);
+      if (cols.length === 0) {
+        await connection.query(`ALTER TABLE prescriptions ADD COLUMN prescription_number VARCHAR(50) NULL UNIQUE AFTER id`);
+        console.log('Successfully added prescription_number column to prescriptions table.');
+      }
+    } catch (migErr) {
+      console.warn('Auto migration for prescription_number skipped/handled:', migErr.message);
+    }
+
     connection.release();
   } catch (error) {
     console.error('MySQL Database connection FAILED:', error.message);

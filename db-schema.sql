@@ -174,6 +174,7 @@ CREATE TABLE IF NOT EXISTS `sale_items` (
 -- Prescriptions Table
 CREATE TABLE IF NOT EXISTS `prescriptions` (
   `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `prescription_number` VARCHAR(50) NULL UNIQUE,
   `branch_id` INT NOT NULL,
   `customer_id` INT NOT NULL,
   `optometrist_id` INT NULL,
