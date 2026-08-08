@@ -1,12 +1,45 @@
 const db = require('../config/database');
 
 class SaleRepository {
+  constructor() {
+    this.initSchema();
+  }
+
+  async initSchema() {
+    try {
+      const [cols] = await db.query("SHOW COLUMNS FROM sales");
+      const colNames = cols.map((c) => c.Field);
+
+      if (!colNames.includes('prescription_id')) {
+        await db.query("ALTER TABLE sales ADD COLUMN prescription_id INT NULL AFTER customer_id");
+      }
+      if (!colNames.includes('prescription_charges')) {
+        await db.query("ALTER TABLE sales ADD COLUMN prescription_charges DECIMAL(12,2) DEFAULT 0.00 AFTER net_amount");
+      }
+      if (!colNames.includes('advance_amount')) {
+        await db.query("ALTER TABLE sales ADD COLUMN advance_amount DECIMAL(12,2) DEFAULT 0.00 AFTER prescription_charges");
+      }
+      if (!colNames.includes('balance_amount')) {
+        await db.query("ALTER TABLE sales ADD COLUMN balance_amount DECIMAL(12,2) DEFAULT 0.00 AFTER advance_amount");
+      }
+    } catch (err) {
+      console.error('Error verifying sales table schema:', err.message);
+    }
+  }
+
   async findById(id) {
     const [rows] = await db.query(
-      `SELECT s.*, c.first_name, c.last_name, u.name as staff_name 
+      `SELECT s.*, 
+              c.first_name, c.last_name, c.phone as customer_phone, c.email as customer_email,
+              u.name as staff_name,
+              p.prescription_number, p.prescription_date, p.expiry_date,
+              p.od_sph, p.od_cyl, p.od_axis,
+              p.os_sph, p.os_cyl, p.os_axis,
+              p.pd, p.fitting_height, p.segment_height, p.prescription_type
        FROM sales s 
        LEFT JOIN customers c ON s.customer_id = c.id 
        LEFT JOIN users u ON s.staff_id = u.id 
+       LEFT JOIN prescriptions p ON s.prescription_id = p.id
        WHERE s.id = ?`,
       [id]
     );
@@ -29,14 +62,24 @@ class SaleRepository {
     try {
       await conn.beginTransaction();
 
-      const { branchId, customerId, staffId, invoiceNumber, totalAmount, taxAmount, discountAmount, netAmount, paymentMethod, paymentStatus, notes } = sale;
+      const {
+        branchId, customerId, prescriptionId, staffId, invoiceNumber,
+        totalAmount, taxAmount, discountAmount, netAmount,
+        prescriptionCharges, advanceAmount, balanceAmount,
+        paymentMethod, paymentStatus, notes
+      } = sale;
 
-      // 1. Insert into sales table
+      // 1. Insert into sales table with prescription & advance payment columns
       const [result] = await conn.query(
         `INSERT INTO sales 
-         (branch_id, customer_id, staff_id, invoice_number, total_amount, tax_amount, discount_amount, net_amount, payment_method, payment_status, notes) 
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [branchId, customerId || null, staffId, invoiceNumber, totalAmount, taxAmount || 0, discountAmount || 0, netAmount, paymentMethod, paymentStatus || 'completed', notes || null]
+         (branch_id, customer_id, prescription_id, staff_id, invoice_number, total_amount, tax_amount, discount_amount, net_amount, prescription_charges, advance_amount, balance_amount, payment_method, payment_status, notes) 
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          branchId, customerId || null, prescriptionId || null, staffId, invoiceNumber,
+          totalAmount, taxAmount || 0, discountAmount || 0, netAmount,
+          prescriptionCharges || 0, advanceAmount || 0, balanceAmount || 0,
+          paymentMethod || 'cash', paymentStatus || 'completed', notes || null
+        ]
       );
       const saleId = result.insertId;
 
@@ -44,14 +87,12 @@ class SaleRepository {
       for (const item of items) {
         const { productId, quantity, unitPrice, taxPercentage, discountPercentage, lineTotal } = item;
         
-        // Insert sale item
         await conn.query(
           `INSERT INTO sale_items (sale_id, product_id, quantity, unit_price, tax_percentage, discount_percentage, line_total) 
            VALUES (?, ?, ?, ?, ?, ?, ?)`,
           [saleId, productId, quantity, unitPrice, taxPercentage, discountPercentage || 0, lineTotal]
         );
 
-        // Decrement inventory stock
         const [invRows] = await conn.query(
           'SELECT id, quantity FROM inventory WHERE product_id = ? AND branch_id = ?',
           [productId, branchId]
@@ -94,10 +135,14 @@ class SaleRepository {
   async getAll(filters = {}) {
     const { branchId, customerId, startDate, endDate, search, limit = 10, offset = 0 } = filters;
     let query = `
-      SELECT s.*, c.first_name, c.last_name, u.name as staff_name 
+      SELECT s.*, 
+             c.first_name, c.last_name, c.phone as customer_phone,
+             u.name as staff_name,
+             p.prescription_number, p.prescription_type, p.od_sph, p.od_cyl, p.od_axis, p.os_sph, p.os_cyl, p.os_axis, p.pd
       FROM sales s 
       LEFT JOIN customers c ON s.customer_id = c.id 
       LEFT JOIN users u ON s.staff_id = u.id 
+      LEFT JOIN prescriptions p ON s.prescription_id = p.id
       WHERE 1=1
     `;
     let countQuery = 'SELECT COUNT(*) as total FROM sales s LEFT JOIN customers c ON s.customer_id = c.id WHERE 1=1';
@@ -135,10 +180,10 @@ class SaleRepository {
 
     if (search) {
       const searchPattern = `%${search}%`;
-      query += ' AND (s.invoice_number LIKE ? OR c.first_name LIKE ? OR c.last_name LIKE ?)';
-      countQuery += ' AND (s.invoice_number LIKE ? OR c.first_name LIKE ? OR c.last_name LIKE ?)';
-      params.push(searchPattern, searchPattern, searchPattern);
-      countParams.push(searchPattern, searchPattern, searchPattern);
+      query += ' AND (s.invoice_number LIKE ? OR c.first_name LIKE ? OR c.last_name LIKE ? OR p.prescription_number LIKE ?)';
+      countQuery += ' AND (s.invoice_number LIKE ? OR c.first_name LIKE ? OR c.last_name LIKE ? OR p.prescription_number LIKE ?)';
+      params.push(searchPattern, searchPattern, searchPattern, searchPattern);
+      countParams.push(searchPattern, searchPattern, searchPattern, searchPattern);
     }
 
     query += ' ORDER BY s.sale_date DESC LIMIT ? OFFSET ?';
