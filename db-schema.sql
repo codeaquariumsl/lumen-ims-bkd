@@ -136,12 +136,16 @@ CREATE TABLE IF NOT EXISTS `sales` (
   `id` INT AUTO_INCREMENT PRIMARY KEY,
   `branch_id` INT NOT NULL,
   `customer_id` INT NULL,
+  `prescription_id` INT NULL,
   `staff_id` INT NOT NULL,
   `invoice_number` VARCHAR(100) NOT NULL UNIQUE,
   `total_amount` DECIMAL(12,2) NOT NULL,
   `tax_amount` DECIMAL(12,2) DEFAULT 0.00,
   `discount_amount` DECIMAL(12,2) DEFAULT 0.00,
   `net_amount` DECIMAL(12,2) NOT NULL,
+  `prescription_charges` DECIMAL(12,2) DEFAULT 0.00,
+  `advance_amount` DECIMAL(12,2) DEFAULT 0.00,
+  `balance_amount` DECIMAL(12,2) DEFAULT 0.00,
   `payment_method` VARCHAR(50) NULL,
   `payment_status` VARCHAR(50) DEFAULT 'completed',
   `notes` TEXT NULL,
@@ -153,6 +157,7 @@ CREATE TABLE IF NOT EXISTS `sales` (
   INDEX `idx_sales_sale_date` (`sale_date`),
   CONSTRAINT `fk_sales_branch` FOREIGN KEY (`branch_id`) REFERENCES `branches` (`id`),
   CONSTRAINT `fk_sales_customer` FOREIGN KEY (`customer_id`) REFERENCES `customers` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `fk_sales_prescription` FOREIGN KEY (`prescription_id`) REFERENCES `prescriptions` (`id`) ON DELETE SET NULL,
   CONSTRAINT `fk_sales_staff` FOREIGN KEY (`staff_id`) REFERENCES `users` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
