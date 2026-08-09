@@ -23,6 +23,31 @@ async function testDbConnection() {
       console.warn('Auto migration for prescription_number skipped/handled:', migErr.message);
     }
 
+    // Auto-migrate categories table if missing
+    try {
+      await connection.query(`
+        CREATE TABLE IF NOT EXISTS categories (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          name VARCHAR(100) NOT NULL UNIQUE,
+          description TEXT NULL,
+          is_active TINYINT(1) DEFAULT 1,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+      `);
+
+      const [catRows] = await connection.query(`SELECT COUNT(*) as count FROM categories`);
+      if (catRows[0].count === 0) {
+        const defaultCats = ['frames', 'lenses', 'services', 'accessories', 'contact-lens'];
+        for (const cat of defaultCats) {
+          await connection.query(`INSERT IGNORE INTO categories (name) VALUES (?)`, [cat]);
+        }
+        console.log('Seeded default categories into database.');
+      }
+    } catch (catMigErr) {
+      console.warn('Auto migration for categories skipped/handled:', catMigErr.message);
+    }
+
     connection.release();
   } catch (error) {
     console.error('MySQL Database connection FAILED:', error.message);

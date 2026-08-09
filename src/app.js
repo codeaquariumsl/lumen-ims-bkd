@@ -43,12 +43,14 @@ const prescriptionRoutes = require('./routes/prescriptionRoutes');
 const labOrderRoutes = require('./routes/labOrderRoutes');
 const analyticsRoutes = require('./routes/analyticsRoutes');
 const settingsRoutes = require('./routes/settingsRoutes');
+const categoryRoutes = require('./routes/categoryRoutes');
 
 // --- ROUTERS SECTION ---
 app.use('/api/auth', authRoutes);
 app.use('/api/branches', branchRoutes);
 app.use('/api/customers', customerRoutes);
 app.use('/api/products', productRoutes);
+app.use('/api/categories', categoryRoutes);
 app.use('/api/sales', saleRoutes);
 app.use('/api/prescriptions', prescriptionRoutes);
 app.use('/api/lab-orders', labOrderRoutes);
