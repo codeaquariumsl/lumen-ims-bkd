@@ -22,6 +22,12 @@ class SaleRepository {
       if (!colNames.includes('balance_amount')) {
         await db.query("ALTER TABLE sales ADD COLUMN balance_amount DECIMAL(12,2) DEFAULT 0.00 AFTER advance_amount");
       }
+
+      const [siCols] = await db.query("SHOW COLUMNS FROM sale_items");
+      const siColNames = siCols.map((c) => c.Field);
+      if (!siColNames.includes('discount_amount')) {
+        await db.query("ALTER TABLE sale_items ADD COLUMN discount_amount DECIMAL(12,2) DEFAULT 0.00 AFTER discount_percentage");
+      }
     } catch (err) {
       console.error('Error verifying sales table schema:', err.message);
     }
@@ -85,12 +91,12 @@ class SaleRepository {
 
       // 2. Insert items and decrement stock
       for (const item of items) {
-        const { productId, quantity, unitPrice, taxPercentage, discountPercentage, lineTotal } = item;
+        const { productId, quantity, unitPrice, taxPercentage, discountPercentage, discountAmount, lineTotal } = item;
         
         await conn.query(
-          `INSERT INTO sale_items (sale_id, product_id, quantity, unit_price, tax_percentage, discount_percentage, line_total) 
-           VALUES (?, ?, ?, ?, ?, ?, ?)`,
-          [saleId, productId, quantity, unitPrice, taxPercentage, discountPercentage || 0, lineTotal]
+          `INSERT INTO sale_items (sale_id, product_id, quantity, unit_price, tax_percentage, discount_percentage, discount_amount, line_total) 
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+          [saleId, productId, quantity, unitPrice, taxPercentage, discountPercentage || 0, discountAmount || 0, lineTotal]
         );
 
         const [invRows] = await conn.query(

@@ -21,18 +21,26 @@ class ProductRepository {
     return rows[0] || null;
   }
 
+  async findProductsByCodePrefix(prefixPattern) {
+    const [rows] = await db.query(
+      'SELECT code FROM products WHERE code LIKE ? AND is_active = 1',
+      [prefixPattern]
+    );
+    return rows;
+  }
+
   async create(product, initialQuantity = 0) {
     const conn = await db.getConnection();
     try {
       await conn.beginTransaction();
 
-      const { branchId, code, name, category, subcategory, description, manufacturer, costPrice, sellingPrice, discountPercentage, hsnCode, taxPercentage, barcode, unit, minStock, maxStock } = product;
+      const { branchId, code, name, category, subcategory, type, description, manufacturer, costPrice, sellingPrice, discountPercentage, hsnCode, taxPercentage, barcode, unit, minStock, maxStock } = product;
       
       const [result] = await conn.query(
         `INSERT INTO products 
-         (branch_id, code, name, category, subcategory, description, manufacturer, cost_price, selling_price, discount_percentage, hsn_code, tax_percentage, barcode, unit, min_stock, max_stock, is_active) 
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`,
-        [branchId, code, name, category, subcategory || null, description || null, manufacturer || null, costPrice, sellingPrice, discountPercentage || 0, hsnCode || null, taxPercentage || 0, barcode || null, unit || 'pcs', minStock || 5, maxStock || 100]
+         (branch_id, code, name, category, subcategory, type, description, manufacturer, cost_price, selling_price, discount_percentage, hsn_code, tax_percentage, barcode, unit, min_stock, max_stock, is_active) 
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`,
+        [branchId, code, name, category, subcategory || null, type || 'inventory', description || null, manufacturer || null, costPrice, sellingPrice, discountPercentage || 0, hsnCode || null, taxPercentage || 0, barcode || null, unit || 'pcs', minStock || 5, maxStock || 100]
       );
       const prodId = result.insertId;
 
@@ -64,14 +72,14 @@ class ProductRepository {
   }
 
   async update(id, product) {
-    const { code, name, category, subcategory, description, manufacturer, costPrice, sellingPrice, discountPercentage, hsnCode, taxPercentage, barcode, unit, minStock, maxStock, isActive } = product;
+    const { code, name, category, subcategory, type, description, manufacturer, costPrice, sellingPrice, discountPercentage, hsnCode, taxPercentage, barcode, unit, minStock, maxStock, isActive } = product;
     
     await db.query(
       `UPDATE products 
-       SET code = ?, name = ?, category = ?, subcategory = ?, description = ?, manufacturer = ?, cost_price = ?, selling_price = ?, discount_percentage = ?, hsn_code = ?, tax_percentage = ?, barcode = ?, unit = ?, min_stock = ?, max_stock = ?, is_active = ? 
+       SET code = ?, name = ?, category = ?, subcategory = ?, type = ?, description = ?, manufacturer = ?, cost_price = ?, selling_price = ?, discount_percentage = ?, hsn_code = ?, tax_percentage = ?, barcode = ?, unit = ?, min_stock = ?, max_stock = ?, is_active = ? 
        WHERE id = ?`,
       [
-        code, name, category, subcategory || null, description || null, manufacturer || null, 
+        code, name, category, subcategory || null, type || 'inventory', description || null, manufacturer || null, 
         costPrice, sellingPrice, discountPercentage || 0.00, hsnCode || null, taxPercentage || 0.00, 
         barcode || null, unit || 'pcs', minStock || 5, maxStock || 100, isActive !== undefined ? (isActive ? 1 : 0) : 1, id
       ]

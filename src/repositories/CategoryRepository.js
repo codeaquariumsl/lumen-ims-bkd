@@ -20,6 +20,15 @@ class CategoryRepository {
     return rows[0] || null;
   }
 
+  async findByCode(code) {
+    if (!code) return null;
+    const [rows] = await db.query(
+      'SELECT * FROM categories WHERE UPPER(code) = UPPER(?)',
+      [code.trim()]
+    );
+    return rows[0] || null;
+  }
+
   async findById(id) {
     const [rows] = await db.query(
       'SELECT * FROM categories WHERE id = ?',
@@ -29,19 +38,19 @@ class CategoryRepository {
   }
 
   async create(data) {
-    const { name, description } = data;
+    const { name, code, description } = data;
     const [result] = await db.query(
-      'INSERT INTO categories (name, description) VALUES (?, ?)',
-      [name.trim().toLowerCase(), description || null]
+      'INSERT INTO categories (name, code, description) VALUES (?, ?, ?)',
+      [name.trim().toLowerCase(), code ? code.trim().toUpperCase() : null, description || null]
     );
     return this.findById(result.insertId);
   }
 
   async update(id, data) {
-    const { name, description } = data;
+    const { name, code, description } = data;
     await db.query(
-      'UPDATE categories SET name = ?, description = ? WHERE id = ?',
-      [name.trim().toLowerCase(), description || null, id]
+      'UPDATE categories SET name = ?, code = ?, description = ? WHERE id = ?',
+      [name.trim().toLowerCase(), code ? code.trim().toUpperCase() : null, description || null, id]
     );
     return this.findById(id);
   }

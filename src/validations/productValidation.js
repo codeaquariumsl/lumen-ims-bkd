@@ -1,9 +1,11 @@
 const { body } = require('express-validator');
 
 const productCreateRules = [
-  body('code').trim().notEmpty().withMessage('Product code is required'),
+  body('code').optional().trim(),
   body('name').trim().notEmpty().withMessage('Product name is required'),
   body('category').trim().notEmpty().withMessage('Category is required'),
+  body('type').optional().isIn(['inventory', 'non-inventory']).withMessage('Type must be inventory or non-inventory'),
+  body('barcode').optional().trim(),
   body('costPrice').isFloat({ min: 0 }).withMessage('Cost price must be a positive number'),
   body('sellingPrice').isFloat({ min: 0 }).withMessage('Selling price must be a positive number'),
   body('discountPercentage').optional().isFloat({ min: 0, max: 100 }).withMessage('Discount percentage must be between 0 and 100'),
@@ -17,6 +19,8 @@ const productUpdateRules = [
   body('code').optional().trim().notEmpty().withMessage('Product code cannot be empty'),
   body('name').optional().trim().notEmpty().withMessage('Product name cannot be empty'),
   body('category').optional().trim().notEmpty().withMessage('Category cannot be empty'),
+  body('type').optional().isIn(['inventory', 'non-inventory']).withMessage('Type must be inventory or non-inventory'),
+  body('barcode').optional().trim(),
   body('costPrice').optional().isFloat({ min: 0 }).withMessage('Cost price must be a positive number'),
   body('sellingPrice').optional().isFloat({ min: 0 }).withMessage('Selling price must be a positive number'),
   body('discountPercentage').optional().isFloat({ min: 0, max: 100 }).withMessage('Discount percentage must be between 0 and 100'),

@@ -15,17 +15,30 @@ class CategoryService {
   }
 
   async createCategory(data) {
-    const { name } = data;
+    const { name, code } = data;
     if (!name || !name.trim()) {
       throw new CustomError('Category name is required.', 400);
     }
+    if (!code || !code.trim() || !/^[A-Za-z]{2}$/.test(code.trim())) {
+      throw new CustomError('Category code is required and must be exactly 2 letters.', 400);
+    }
 
-    const existing = await CategoryRepository.findByName(name);
-    if (existing) {
+    const uppercaseCode = code.trim().toUpperCase();
+
+    const existingName = await CategoryRepository.findByName(name);
+    if (existingName) {
       throw new CustomError(`Category "${name.trim().toLowerCase()}" already exists.`, 400);
     }
 
-    return CategoryRepository.create(data);
+    const existingCode = await CategoryRepository.findByCode(uppercaseCode);
+    if (existingCode) {
+      throw new CustomError(`Category code "${uppercaseCode}" is already in use.`, 400);
+    }
+
+    return CategoryRepository.create({
+      ...data,
+      code: uppercaseCode
+    });
   }
 
   async updateCategory(id, data) {
@@ -34,9 +47,21 @@ class CategoryService {
       throw new CustomError('Category not found.', 404);
     }
 
+    if (data.code !== undefined) {
+      if (!data.code || !data.code.trim() || !/^[A-Za-z]{2}$/.test(data.code.trim())) {
+        throw new CustomError('Category code must be exactly 2 letters.', 400);
+      }
+      const uppercaseCode = data.code.trim().toUpperCase();
+      const existingCode = await CategoryRepository.findByCode(uppercaseCode);
+      if (existingCode && existingCode.id !== parseInt(id)) {
+        throw new CustomError(`Category code "${uppercaseCode}" is already in use.`, 400);
+      }
+      data.code = uppercaseCode;
+    }
+
     if (data.name && data.name.trim().toLowerCase() !== category.name.toLowerCase()) {
       const existing = await CategoryRepository.findByName(data.name);
-      if (existing) {
+      if (existing && existing.id !== parseInt(id)) {
         throw new CustomError(`Category "${data.name.trim().toLowerCase()}" already exists.`, 400);
       }
     }

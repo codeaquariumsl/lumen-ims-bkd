@@ -90,6 +90,7 @@ CREATE TABLE IF NOT EXISTS `customers` (
 CREATE TABLE IF NOT EXISTS `categories` (
   `id` INT AUTO_INCREMENT PRIMARY KEY,
   `name` VARCHAR(100) NOT NULL UNIQUE,
+  `code` VARCHAR(10) NULL,
   `description` TEXT NULL,
   `is_active` TINYINT(1) DEFAULT 1,
   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -104,6 +105,7 @@ CREATE TABLE IF NOT EXISTS `products` (
   `name` VARCHAR(255) NOT NULL,
   `category` VARCHAR(100) NULL,
   `subcategory` VARCHAR(100) NULL,
+  `type` VARCHAR(50) NOT NULL DEFAULT 'inventory',
   `description` TEXT NULL,
   `manufacturer` VARCHAR(255) NULL,
   `cost_price` DECIMAL(12,2) NOT NULL,

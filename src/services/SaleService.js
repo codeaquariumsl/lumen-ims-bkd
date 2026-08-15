@@ -35,33 +35,44 @@ class SaleService {
     const invoiceNumber = `${year}${sequence}`;
 
     let subtotal = 0;
+    let totalDiscountAmount = 0;
     const itemsToInsert = [];
 
     // 2. Validate items and stock
     if (items && items.length > 0) {
       for (const item of items) {
-        const { productId, quantity } = item;
+        const { productId, quantity, discountPercentage: itemDiscPct, discountAmount: itemDiscAmt } = item;
         const product = await ProductRepository.findById(productId);
 
         if (!product) {
           throw new CustomError(`Product with ID ${productId} not found.`, 404);
         }
 
-        // Check stock levels
-        if (product.quantity < quantity) {
+        // Check stock levels (only for inventory products)
+        const isNonInventory = product.type === 'non-inventory';
+        if (!isNonInventory && product.quantity < quantity) {
           throw new CustomError(`Insufficient stock for product "${product.name}". Available: ${product.quantity}, Requested: ${quantity}`, 400);
         }
 
         const unitPrice = parseFloat(product.selling_price || product.sellingPrice);
         const taxPercentage = 0; // Tax removed
-        const discountPercentage = parseFloat(product.discount_percentage || 0.00);
+        
+        let discountPercentage = itemDiscPct !== undefined && itemDiscPct !== null
+          ? parseFloat(itemDiscPct)
+          : parseFloat(product.discount_percentage || 0.00);
 
-        // Line calculations
         const itemSubtotal = unitPrice * quantity;
-        const discountAmount = itemSubtotal * (discountPercentage / 100);
+        let discountAmount = itemDiscAmt !== undefined && itemDiscAmt !== null
+          ? parseFloat(itemDiscAmt)
+          : itemSubtotal * (discountPercentage / 100);
+
+        if (isNaN(discountAmount) || discountAmount < 0) discountAmount = 0;
+        if (discountAmount > itemSubtotal) discountAmount = itemSubtotal;
+
         const lineTotal = itemSubtotal - discountAmount;
 
-        subtotal += lineTotal;
+        subtotal += itemSubtotal;
+        totalDiscountAmount += discountAmount;
 
         itemsToInsert.push({
           productId,
@@ -69,14 +80,14 @@ class SaleService {
           unitPrice,
           taxPercentage: 0,
           discountPercentage,
+          discountAmount,
           lineTotal
         });
       }
     }
 
     const rxFee = parseFloat(prescriptionCharges || 0) || 0;
-    const discountAmount = 0.00;
-    const netAmount = subtotal + rxFee - discountAmount;
+    const netAmount = (subtotal - totalDiscountAmount) + rxFee;
 
     let advPaid = parseFloat(advanceAmount || 0);
     if (isNaN(advPaid) || checkoutData.advanceAmount === undefined) {
@@ -94,7 +105,7 @@ class SaleService {
       invoiceNumber,
       totalAmount: subtotal,
       taxAmount: 0,
-      discountAmount,
+      discountAmount: totalDiscountAmount,
       netAmount,
       prescriptionCharges: rxFee,
       advanceAmount: advPaid,

@@ -21,6 +21,19 @@ class ProductController {
     }
   }
 
+  async getNextCode(req, res, next) {
+    try {
+      const { category } = req.query;
+      if (!category) {
+        return sendResponse(res, 400, false, 'Category query parameter is required.');
+      }
+      const result = await ProductService.getNextProductCode(category);
+      return sendResponse(res, 200, true, 'Next product code calculated successfully', result);
+    } catch (error) {
+      next(error);
+    }
+  }
+
   async getById(req, res, next) {
     try {
       const product = await ProductService.getProductById(req.params.id);
