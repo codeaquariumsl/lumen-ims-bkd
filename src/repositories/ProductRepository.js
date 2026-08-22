@@ -216,6 +216,46 @@ class ProductRepository {
       );
     }
   }
+
+  async getInventorySummary(branchId) {
+    let query = `
+      SELECT 
+        COUNT(DISTINCT p.id) as totalItems,
+        COALESCE(SUM(CASE WHEN p.type = 'inventory' THEN COALESCE(i_sum.total_qty, 0) * p.cost_price ELSE 0 END), 0) as totalValue,
+        COUNT(DISTINCT CASE WHEN p.type = 'inventory' AND COALESCE(i_sum.total_qty, 0) <= p.min_stock THEN p.id END) as lowStockCount,
+        COUNT(DISTINCT CASE WHEN p.type = 'inventory' AND COALESCE(i_sum.total_qty, 0) >= p.max_stock THEN p.id END) as overStockCount
+      FROM products p
+      LEFT JOIN (
+        SELECT product_id, SUM(quantity) as total_qty FROM inventory GROUP BY product_id
+      ) i_sum ON p.id = i_sum.product_id
+      WHERE p.is_active = 1
+    `;
+    const params = [];
+    if (branchId) {
+      query = `
+        SELECT 
+          COUNT(DISTINCT p.id) as totalItems,
+          COALESCE(SUM(CASE WHEN p.type = 'inventory' THEN COALESCE(i_sum.total_qty, 0) * p.cost_price ELSE 0 END), 0) as totalValue,
+          COUNT(DISTINCT CASE WHEN p.type = 'inventory' AND COALESCE(i_sum.total_qty, 0) <= p.min_stock THEN p.id END) as lowStockCount,
+          COUNT(DISTINCT CASE WHEN p.type = 'inventory' AND COALESCE(i_sum.total_qty, 0) >= p.max_stock THEN p.id END) as overStockCount
+        FROM products p
+        LEFT JOIN (
+          SELECT product_id, SUM(quantity) as total_qty FROM inventory WHERE branch_id = ? GROUP BY product_id
+        ) i_sum ON p.id = i_sum.product_id
+        WHERE p.is_active = 1 AND p.branch_id = ?
+      `;
+      params.push(branchId, branchId);
+    }
+
+    const [rows] = await db.query(query, params);
+    const row = rows[0] || {};
+    return {
+      totalItems: parseInt(row.totalItems || 0),
+      totalValue: parseFloat(row.totalValue || 0),
+      lowStockCount: parseInt(row.lowStockCount || 0),
+      overStockCount: parseInt(row.overStockCount || 0)
+    };
+  }
 }
 
 module.exports = new ProductRepository();

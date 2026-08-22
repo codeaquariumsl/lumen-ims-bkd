@@ -103,6 +103,16 @@ class ProductController {
       next(error);
     }
   }
+
+  async getSummary(req, res, next) {
+    try {
+      const branchId = req.user.role === 'admin' ? req.query.branchId : req.user.branchId;
+      const summary = await ProductService.getInventorySummary(branchId);
+      return sendResponse(res, 200, true, 'Inventory summary loaded successfully', summary);
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 module.exports = new ProductController();

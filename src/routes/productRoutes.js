@@ -11,6 +11,7 @@ router.use(protect);
 // Core queries
 router.get('/', ProductController.getAll);
 router.get('/inventory', ProductController.getInventory); // Keep above /:id route to prevent pattern clash
+router.get('/summary', ProductController.getSummary);
 router.get('/next-code', ProductController.getNextCode);
 router.get('/:id', ProductController.getById);
 

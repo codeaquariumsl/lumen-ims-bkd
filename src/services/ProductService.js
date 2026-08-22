@@ -149,6 +149,10 @@ class ProductService {
     await ProductRepository.setInventoryDetails(productId, branchId, details);
     return this.getProductById(productId);
   }
+
+  async getInventorySummary(branchId) {
+    return ProductRepository.getInventorySummary(branchId);
+  }
 }
 
 module.exports = new ProductService();
