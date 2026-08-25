@@ -128,8 +128,11 @@ class ProductRepository {
       countParams.push(searchPattern, searchPattern, searchPattern);
     }
 
-    query += ' GROUP BY p.id ORDER BY p.created_at DESC LIMIT ? OFFSET ?';
-    params.push(parseInt(limit), parseInt(offset));
+    query += ' GROUP BY p.id ORDER BY p.created_at DESC';
+    if (limit !== null && limit !== undefined) {
+      query += ' LIMIT ? OFFSET ?';
+      params.push(parseInt(limit, 10), parseInt(offset || 0, 10));
+    }
 
     const [rows] = await db.query(query, params);
     const [countRows] = await db.query(countQuery, countParams);

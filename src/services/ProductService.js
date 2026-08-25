@@ -93,10 +93,11 @@ class ProductService {
     return product;
   }
 
-  async getAllProducts(filters) {
-    const page = parseInt(filters.page || '1');
-    const limit = parseInt(filters.limit || '10');
-    const offset = (page - 1) * limit;
+  async getAllProducts(filters = {}) {
+    const hasLimit = filters.limit !== undefined && filters.limit !== null && filters.limit !== '' && filters.limit !== 'all';
+    const limit = hasLimit ? parseInt(filters.limit, 10) : null;
+    const page = filters.page ? parseInt(filters.page, 10) : 1;
+    const offset = limit ? (page - 1) * limit : 0;
 
     const { products, total } = await ProductRepository.getAll({
       ...filters,
@@ -104,13 +105,13 @@ class ProductService {
       offset
     });
 
-    const totalPages = Math.ceil(total / limit);
+    const totalPages = limit ? Math.ceil(total / limit) : 1;
 
     return {
       products,
       pagination: {
         page,
-        limit,
+        limit: limit !== null ? limit : total,
         totalItems: total,
         totalPages
       }
