@@ -44,9 +44,11 @@ const labOrderRoutes = require('./routes/labOrderRoutes');
 const analyticsRoutes = require('./routes/analyticsRoutes');
 const settingsRoutes = require('./routes/settingsRoutes');
 const categoryRoutes = require('./routes/categoryRoutes');
+const userRoutes = require('./routes/userRoutes');
 
 // --- ROUTERS SECTION ---
 app.use('/api/auth', authRoutes);
+app.use('/api/users', userRoutes);
 app.use('/api/branches', branchRoutes);
 app.use('/api/customers', customerRoutes);
 app.use('/api/products', productRoutes);

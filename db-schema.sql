@@ -46,8 +46,11 @@ CREATE TABLE IF NOT EXISTS `branches` (
 -- Users Table
 CREATE TABLE IF NOT EXISTS `users` (
   `id` INT AUTO_INCREMENT PRIMARY KEY,
-  `email` VARCHAR(255) NOT NULL UNIQUE,
+  `full_name` VARCHAR(255) NULL,
   `name` VARCHAR(255) NOT NULL,
+  `username` VARCHAR(100) NULL UNIQUE,
+  `email` VARCHAR(255) NOT NULL UNIQUE,
+  `phone` VARCHAR(20) NULL,
   `password` VARCHAR(255) NOT NULL,
   `role` VARCHAR(50) NOT NULL DEFAULT 'staff',
   `branch_id` INT NULL,
@@ -56,6 +59,7 @@ CREATE TABLE IF NOT EXISTS `users` (
   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   INDEX `idx_users_email` (`email`),
+  INDEX `idx_users_username` (`username`),
   INDEX `idx_users_branch_id` (`branch_id`),
   CONSTRAINT `fk_users_branch` FOREIGN KEY (`branch_id`) REFERENCES `branches` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -194,6 +198,7 @@ CREATE TABLE IF NOT EXISTS `prescriptions` (
   `prescription_number` VARCHAR(50) NULL UNIQUE,
   `branch_id` INT NOT NULL,
   `customer_id` INT NOT NULL,
+  `staff_id` INT NULL,
   `optometrist_id` INT NULL,
   `prescription_date` DATE NOT NULL,
   `expiry_date` DATE NULL,
@@ -220,9 +225,11 @@ CREATE TABLE IF NOT EXISTS `prescriptions` (
   `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   INDEX `idx_prescriptions_branch_id` (`branch_id`),
   INDEX `idx_prescriptions_customer_id` (`customer_id`),
+  INDEX `idx_prescriptions_staff_id` (`staff_id`),
   CONSTRAINT `fk_prescriptions_branch` FOREIGN KEY (`branch_id`) REFERENCES `branches` (`id`),
   CONSTRAINT `fk_prescriptions_customer` FOREIGN KEY (`customer_id`) REFERENCES `customers` (`id`) ON DELETE CASCADE,
-  CONSTRAINT `fk_prescriptions_optometrist` FOREIGN KEY (`optometrist_id`) REFERENCES `users` (`id`) ON DELETE SET NULL
+  CONSTRAINT `fk_prescriptions_optometrist` FOREIGN KEY (`optometrist_id`) REFERENCES `users` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `fk_prescriptions_staff` FOREIGN KEY (`staff_id`) REFERENCES `users` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Lab Orders Table

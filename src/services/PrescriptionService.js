@@ -24,9 +24,13 @@ class PrescriptionService {
     expDate.setFullYear(expDate.getFullYear() + 1);
     const finalExpiryDate = expDate.toISOString().split('T')[0];
 
+    const staffId = prescriptionData.staffId || prescriptionData.staff_id || user.id;
+    const optometristId = prescriptionData.optometristId || prescriptionData.optometrist_id || staffId;
+
     const prescription = {
       branchId,
-      optometristId: user.id,
+      staffId,
+      optometristId,
       prescriptionDate: finalDate,
       expiryDate: finalExpiryDate,
       ...prescriptionData

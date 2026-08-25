@@ -11,6 +11,7 @@ class PrescriptionRepository {
       const colNames = cols.map((c) => c.Field);
 
       const columnsToAdd = [
+        { name: 'staff_id', type: 'INT NULL' },
         { name: 'od_va', type: "VARCHAR(20) DEFAULT '6/6'" },
         { name: 'os_va', type: "VARCHAR(20) DEFAULT '6/6'" },
         { name: 'od_add', type: "DECIMAL(5,2) DEFAULT 0.00" },
@@ -74,10 +75,14 @@ class PrescriptionRepository {
 
   async findById(id) {
     const [rows] = await db.query(
-      `SELECT p.*, c.first_name, c.last_name, c.phone as customer_phone, u.name as optometrist_name 
+      `SELECT p.*, c.first_name, c.last_name, c.phone as customer_phone,
+              COALESCE(u.full_name, u.name) as optometrist_name,
+              COALESCE(u.full_name, u.name) as clinician_name,
+              COALESCE(u.full_name, u.name) as staff_name,
+              u.username as staff_username
        FROM prescriptions p 
        JOIN customers c ON p.customer_id = c.id 
-       LEFT JOIN users u ON p.optometrist_id = u.id 
+       LEFT JOIN users u ON (p.staff_id = u.id OR (p.staff_id IS NULL AND p.optometrist_id = u.id)) 
        WHERE p.id = ?`,
       [id]
     );
@@ -86,7 +91,7 @@ class PrescriptionRepository {
 
   async create(prescription) {
     const {
-      branchId, customerId, optometristId, prescriptionDate, expiryDate,
+      branchId, customerId, staffId, optometristId, prescriptionDate, expiryDate,
       od_sph, od_cyl, od_axis, od_add, od_va, od_prism, od_base,
       os_sph, os_cyl, os_axis, os_add, os_va, os_prism, os_base,
       pd, pd_right, pd_left, pd_near, pd_near_right, pd_near_left,
@@ -95,20 +100,22 @@ class PrescriptionRepository {
       remarks, prescriptionType
     } = prescription;
 
+    const actualStaffId = staffId || optometristId || null;
+    const actualOptometristId = optometristId || staffId || null;
     const prescriptionNumber = prescription.prescriptionNumber || await this.generateNextPrescriptionNumber(prescriptionDate);
 
     const [result] = await db.query(
       `INSERT INTO prescriptions 
-       (prescription_number, branch_id, customer_id, optometrist_id, prescription_date, expiry_date,
+       (prescription_number, branch_id, customer_id, staff_id, optometrist_id, prescription_date, expiry_date,
         od_sph, od_cyl, od_axis, od_add, od_va, od_prism, od_base,
         os_sph, os_cyl, os_axis, os_add, os_va, os_prism, os_base,
         pd, pd_right, pd_left, pd_near, pd_near_right, pd_near_left,
         intermediate_add, near_pd, fitting_height, segment_height, fh_right, fh_left, sh_right, sh_left,
         a_val, b_val, dbl_val, dia_right, dia_left, base_curve_right, base_curve_left, panto_angle, wrap_angle,
         remarks, prescription_type) 
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
-        prescriptionNumber, branchId, customerId, optometristId || null, prescriptionDate, expiryDate || null,
+        prescriptionNumber, branchId, customerId, actualStaffId, actualOptometristId, prescriptionDate, expiryDate || null,
         od_sph !== undefined ? od_sph : 0.00, od_cyl !== undefined ? od_cyl : 0.00, od_axis || 0, od_add !== undefined ? od_add : 0.00, od_va || '6/6', od_prism !== undefined ? od_prism : 0.00, od_base || null,
         os_sph !== undefined ? os_sph : 0.00, os_cyl !== undefined ? os_cyl : 0.00, os_axis || 0, os_add !== undefined ? os_add : 0.00, os_va || '6/6', os_prism !== undefined ? os_prism : 0.00, os_base || null,
         pd || 62.00, pd_right !== undefined ? pd_right : null, pd_left !== undefined ? pd_left : null, pd_near !== undefined ? pd_near : null, pd_near_right !== undefined ? pd_near_right : null, pd_near_left !== undefined ? pd_near_left : null,
@@ -123,6 +130,7 @@ class PrescriptionRepository {
 
   async update(id, prescription) {
     const {
+      staffId, optometristId,
       prescriptionDate, expiryDate,
       od_sph, od_cyl, od_axis, od_add, od_va, od_prism, od_base,
       os_sph, os_cyl, os_axis, os_add, os_va, os_prism, os_base,
@@ -132,9 +140,14 @@ class PrescriptionRepository {
       remarks, prescriptionType
     } = prescription;
 
+    const actualStaffId = staffId !== undefined ? staffId : (optometristId !== undefined ? optometristId : null);
+    const actualOptometristId = optometristId !== undefined ? optometristId : (staffId !== undefined ? staffId : null);
+
     await db.query(
       `UPDATE prescriptions 
-       SET prescription_date = ?, expiry_date = ?,
+       SET staff_id = COALESCE(?, staff_id),
+           optometrist_id = COALESCE(?, optometrist_id),
+           prescription_date = ?, expiry_date = ?,
            od_sph = ?, od_cyl = ?, od_axis = ?, od_add = ?, od_va = ?, od_prism = ?, od_base = ?,
            os_sph = ?, os_cyl = ?, os_axis = ?, os_add = ?, os_va = ?, os_prism = ?, os_base = ?,
            pd = ?, pd_right = ?, pd_left = ?, pd_near = ?, pd_near_right = ?, pd_near_left = ?,
@@ -143,6 +156,7 @@ class PrescriptionRepository {
            remarks = ?, prescription_type = ? 
        WHERE id = ?`,
       [
+        actualStaffId, actualOptometristId,
         prescriptionDate, expiryDate || null,
         od_sph, od_cyl, od_axis, od_add, od_va || '6/6', od_prism, od_base,
         os_sph, os_cyl, os_axis, os_add, os_va || '6/6', os_prism, os_base,
@@ -164,10 +178,14 @@ class PrescriptionRepository {
   async getAll(filters = {}) {
     const { branchId, customerId, search, limit = 10, offset = 0 } = filters;
     let query = `
-      SELECT p.*, c.first_name, c.last_name, c.phone as customer_phone, u.name as optometrist_name 
+      SELECT p.*, c.first_name, c.last_name, c.phone as customer_phone,
+             COALESCE(u.full_name, u.name) as optometrist_name,
+             COALESCE(u.full_name, u.name) as clinician_name,
+             COALESCE(u.full_name, u.name) as staff_name,
+             u.username as staff_username
       FROM prescriptions p 
       JOIN customers c ON p.customer_id = c.id 
-      LEFT JOIN users u ON p.optometrist_id = u.id 
+      LEFT JOIN users u ON (p.staff_id = u.id OR (p.staff_id IS NULL AND p.optometrist_id = u.id)) 
       WHERE 1=1
     `;
     let countQuery = 'SELECT COUNT(*) as total FROM prescriptions p JOIN customers c ON p.customer_id = c.id WHERE 1=1';
@@ -191,9 +209,9 @@ class PrescriptionRepository {
 
     if (search) {
       const searchPattern = `%${search}%`;
-      query += ' AND (p.prescription_number LIKE ? OR c.first_name LIKE ? OR c.last_name LIKE ? OR c.phone LIKE ?)';
+      query += ' AND (p.prescription_number LIKE ? OR c.first_name LIKE ? OR c.last_name LIKE ? OR c.phone LIKE ? OR u.name LIKE ? OR u.full_name LIKE ?)';
       countQuery += ' AND (p.prescription_number LIKE ? OR c.first_name LIKE ? OR c.last_name LIKE ? OR c.phone LIKE ?)';
-      params.push(searchPattern, searchPattern, searchPattern, searchPattern);
+      params.push(searchPattern, searchPattern, searchPattern, searchPattern, searchPattern, searchPattern);
       countParams.push(searchPattern, searchPattern, searchPattern, searchPattern);
     }
 
