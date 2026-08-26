@@ -152,6 +152,47 @@ class SaleService {
       items
     };
   }
+
+  async collectPayment(saleId, paymentData, staff) {
+    const sale = await SaleRepository.findById(saleId);
+    if (!sale) {
+      throw new CustomError('Invoice not found.', 404);
+    }
+
+    const { amount, paymentMethod, notes } = paymentData;
+    const payAmount = parseFloat(amount);
+
+    if (isNaN(payAmount) || payAmount <= 0) {
+      throw new CustomError('Payment amount must be greater than 0.', 400);
+    }
+
+    const currentBalance = parseFloat(sale.balance_amount || 0);
+    const currentAdvance = parseFloat(sale.advance_amount || 0);
+
+    if (currentBalance <= 0 && sale.payment_status === 'completed') {
+      throw new CustomError('This invoice is already fully settled and completed.', 400);
+    }
+
+    const actualPayAmount = Math.min(payAmount, currentBalance > 0 ? currentBalance : parseFloat(sale.net_amount));
+    const newAdvance = currentAdvance + actualPayAmount;
+    const newBalance = Math.max(0, currentBalance - actualPayAmount);
+    const newStatus = newBalance <= 0 ? 'completed' : 'partial';
+
+    // Format new payment log into notes
+    const paymentTimestamp = new Date().toLocaleString('en-IN');
+    const paymentLog = `[${paymentTimestamp}] Collected LKR ${actualPayAmount.toFixed(2)} via ${(paymentMethod || 'cash').toUpperCase()} by ${staff?.name || 'Staff'}${notes ? ` - ${notes}` : ''}`;
+    const updatedNotes = sale.notes ? `${sale.notes}\n${paymentLog}` : paymentLog;
+
+    await SaleRepository.updatePayment(saleId, {
+      advanceAmount: newAdvance,
+      balanceAmount: newBalance,
+      paymentStatus: newStatus,
+      paymentMethod: paymentMethod || sale.payment_method || 'cash',
+      notes: updatedNotes
+    });
+
+    return this.getSaleById(saleId);
+  }
 }
 
 module.exports = new SaleService();

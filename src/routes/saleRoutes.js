@@ -11,5 +11,6 @@ router.use(protect);
 router.post('/checkout', validate(checkoutRules), SaleController.checkout);
 router.get('/', SaleController.getAll);
 router.get('/:id', SaleController.getById);
+router.post('/:id/collect-payment', SaleController.collectPayment);
 
 module.exports = router;

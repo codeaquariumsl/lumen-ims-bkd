@@ -212,6 +212,16 @@ class SaleRepository {
     );
     return rows[0].count;
   }
+
+  async updatePayment(id, { advanceAmount, balanceAmount, paymentStatus, paymentMethod, notes }) {
+    await db.query(
+      `UPDATE sales 
+       SET advance_amount = ?, balance_amount = ?, payment_status = ?, payment_method = ?, notes = ?
+       WHERE id = ?`,
+      [advanceAmount, balanceAmount, paymentStatus, paymentMethod, notes, id]
+    );
+    return this.findById(id);
+  }
 }
 
 module.exports = new SaleRepository();

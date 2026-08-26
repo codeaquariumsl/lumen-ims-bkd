@@ -40,6 +40,15 @@ class SaleController {
       next(error);
     }
   }
+
+  async collectPayment(req, res, next) {
+    try {
+      const sale = await SaleService.collectPayment(req.params.id, req.body, req.user);
+      return sendResponse(res, 200, true, 'Payment recorded successfully', sale);
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 module.exports = new SaleController();
