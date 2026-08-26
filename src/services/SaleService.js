@@ -123,8 +123,12 @@ class SaleService {
   }
 
   async getAllSales(filters) {
-    const result = await SaleRepository.getAll(filters);
-    const totalPages = Math.ceil(result.total / (filters.limit || 10));
+    const page = parseInt(filters.page || 1);
+    const limit = parseInt(filters.limit || 10);
+    const offset = (page - 1) * limit;
+
+    const result = await SaleRepository.getAll({ ...filters, page, limit, offset });
+    const totalPages = Math.ceil(result.total / limit);
 
     return {
       sales: result.sales,

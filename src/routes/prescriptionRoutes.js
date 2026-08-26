@@ -15,7 +15,7 @@ router.get('/:id', PrescriptionController.getById);
 router.post('/', restrictTo('admin', 'manager', 'optometrist'), validate(prescriptionCreateRules), PrescriptionController.create);
 router.put('/:id', restrictTo('admin', 'manager', 'optometrist'), validate(prescriptionCreateRules), PrescriptionController.update);
 
-// Deletions restricted to admin/manager
-router.delete('/:id', restrictTo('admin', 'manager'), PrescriptionController.delete);
+// Deletions restricted to admin/manager/optometrist
+router.delete('/:id', restrictTo('admin', 'manager', 'optometrist'), PrescriptionController.delete);
 
 module.exports = router;
