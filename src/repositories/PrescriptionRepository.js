@@ -75,7 +75,7 @@ class PrescriptionRepository {
 
   async findById(id) {
     const [rows] = await db.query(
-      `SELECT p.*, c.first_name, c.last_name, c.phone as customer_phone,
+      `SELECT p.*, c.first_name, c.last_name, c.phone as customer_phone, c.address, c.city,
               COALESCE(u.full_name, u.name) as optometrist_name,
               COALESCE(u.full_name, u.name) as clinician_name,
               COALESCE(u.full_name, u.name) as staff_name,
@@ -86,7 +86,76 @@ class PrescriptionRepository {
        WHERE p.id = ?`,
       [id]
     );
-    return rows[0] || null;
+    if (!rows[0]) return null;
+
+    const prescription = rows[0];
+
+    // Check if prescription has an associated sale/order
+    const [sales] = await db.query(
+      `SELECT s.id as order_id, s.invoice_number as order_no, s.sale_date as order_date,
+              s.total_amount, s.tax_amount, s.discount_amount, s.net_amount, s.prescription_charges,
+              s.advance_amount, s.balance_amount, s.payment_method, s.payment_status, s.notes as order_notes,
+              s.created_at as order_created_at
+       FROM sales s
+       WHERE s.prescription_id = ?
+       ORDER BY s.id DESC LIMIT 1`,
+      [id]
+    );
+
+    if (sales.length > 0) {
+      const sale = sales[0];
+      const [items] = await db.query(
+        `SELECT si.*, p.name, p.code, p.category, p.type as product_type
+         FROM sale_items si 
+         JOIN products p ON si.product_id = p.id 
+         WHERE si.sale_id = ?`,
+        [sale.order_id]
+      );
+
+      prescription.order_id = sale.order_id;
+      prescription.order_no = sale.order_no;
+      prescription.orderNo = sale.order_no;
+      prescription.order_date = sale.order_date;
+      prescription.orderDate = sale.order_date;
+      prescription.order_time = sale.order_created_at
+        ? new Date(sale.order_created_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
+        : '';
+      prescription.orderTime = prescription.order_time;
+      prescription.total_amount = sale.total_amount;
+      prescription.totalAmount = parseFloat(sale.net_amount || sale.total_amount || 0);
+      prescription.net_amount = sale.net_amount;
+      prescription.advance_amount = sale.advance_amount;
+      prescription.balance_amount = sale.balance_amount;
+      prescription.payment_status = sale.payment_status;
+      prescription.payment_method = sale.payment_method;
+      prescription.has_order = true;
+      prescription.hasOrder = true;
+
+      prescription.items = items.map((item) => ({
+        id: item.id,
+        productId: item.product_id,
+        code: item.code || '',
+        description: item.name || '',
+        name: item.name || '',
+        rate: parseFloat(item.unit_price) || 0,
+        unit_price: parseFloat(item.unit_price) || 0,
+        qty: item.quantity,
+        quantity: item.quantity,
+        discountPercent: parseFloat(item.discount_percentage) || 0,
+        discount_percentage: parseFloat(item.discount_percentage) || 0,
+        discountAmount: parseFloat(item.discount_amount) || 0,
+        discount_amount: parseFloat(item.discount_amount) || 0,
+        amount: parseFloat(item.line_total) || 0,
+        line_total: parseFloat(item.line_total) || 0,
+        type: item.category || (item.product_type === 'lens' ? 'L' : (item.product_type === 'frame' ? 'F' : 'O'))
+      }));
+    } else {
+      prescription.has_order = false;
+      prescription.hasOrder = false;
+      prescription.items = [];
+    }
+
+    return prescription;
   }
 
   async create(prescription) {
@@ -178,7 +247,7 @@ class PrescriptionRepository {
   async getAll(filters = {}) {
     const { branchId, customerId, search, limit = 10, offset = 0 } = filters;
     let query = `
-      SELECT p.*, c.first_name, c.last_name, c.phone as customer_phone,
+      SELECT p.*, c.first_name, c.last_name, c.phone as customer_phone, c.address, c.city,
              COALESCE(u.full_name, u.name) as optometrist_name,
              COALESCE(u.full_name, u.name) as clinician_name,
              COALESCE(u.full_name, u.name) as staff_name,
@@ -221,6 +290,94 @@ class PrescriptionRepository {
     const [rows] = await db.query(query, params);
     const [countRows] = await db.query(countQuery, countParams);
     const total = countRows[0].total;
+
+    if (rows.length > 0) {
+      const rxIds = rows.map((r) => r.id);
+      const [sales] = await db.query(
+        `SELECT s.id as order_id, s.invoice_number as order_no, s.prescription_id, s.sale_date as order_date,
+                s.total_amount, s.tax_amount, s.discount_amount, s.net_amount, s.prescription_charges,
+                s.advance_amount, s.balance_amount, s.payment_status, s.payment_method, s.notes as order_notes,
+                s.created_at as order_created_at
+         FROM sales s
+         WHERE s.prescription_id IN (?)
+         ORDER BY s.id DESC`,
+        [rxIds]
+      );
+
+      // Map latest sale per prescription_id
+      const salesMap = {};
+      const saleIds = [];
+      sales.forEach((s) => {
+        if (!salesMap[s.prescription_id]) {
+          salesMap[s.prescription_id] = s;
+          saleIds.push(s.order_id);
+        }
+      });
+
+      const itemsMap = {};
+      if (saleIds.length > 0) {
+        const [items] = await db.query(
+          `SELECT si.*, p.name, p.code, p.category, p.type as product_type
+           FROM sale_items si 
+           JOIN products p ON si.product_id = p.id 
+           WHERE si.sale_id IN (?)`,
+          [saleIds]
+        );
+
+        items.forEach((item) => {
+          if (!itemsMap[item.sale_id]) {
+            itemsMap[item.sale_id] = [];
+          }
+          itemsMap[item.sale_id].push({
+            id: item.id,
+            productId: item.product_id,
+            code: item.code || '',
+            description: item.name || '',
+            name: item.name || '',
+            rate: parseFloat(item.unit_price) || 0,
+            unit_price: parseFloat(item.unit_price) || 0,
+            qty: item.quantity,
+            quantity: item.quantity,
+            discountPercent: parseFloat(item.discount_percentage) || 0,
+            discount_percentage: parseFloat(item.discount_percentage) || 0,
+            discountAmount: parseFloat(item.discount_amount) || 0,
+            discount_amount: parseFloat(item.discount_amount) || 0,
+            amount: parseFloat(item.line_total) || 0,
+            line_total: parseFloat(item.line_total) || 0,
+            type: item.category || (item.product_type === 'lens' ? 'L' : (item.product_type === 'frame' ? 'F' : 'O'))
+          });
+        });
+      }
+
+      rows.forEach((p) => {
+        const sale = salesMap[p.id];
+        if (sale) {
+          p.order_id = sale.order_id;
+          p.order_no = sale.order_no;
+          p.orderNo = sale.order_no;
+          p.order_date = sale.order_date;
+          p.orderDate = sale.order_date;
+          p.order_time = sale.order_created_at
+            ? new Date(sale.order_created_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
+            : '';
+          p.orderTime = p.order_time;
+          p.total_amount = sale.total_amount;
+          p.totalAmount = parseFloat(sale.net_amount || sale.total_amount || 0);
+          p.net_amount = sale.net_amount;
+          p.advance_amount = sale.advance_amount;
+          p.balance_amount = sale.balance_amount;
+          p.payment_status = sale.payment_status;
+          p.payment_method = sale.payment_method;
+          p.has_order = true;
+          p.hasOrder = true;
+          p.items = itemsMap[sale.order_id] || [];
+        } else {
+          p.has_order = false;
+          p.hasOrder = false;
+          p.items = [];
+        }
+      });
+    }
 
     return {
       prescriptions: rows,
