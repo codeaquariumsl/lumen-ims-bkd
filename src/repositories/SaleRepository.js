@@ -151,7 +151,14 @@ class SaleRepository {
       LEFT JOIN prescriptions p ON s.prescription_id = p.id
       WHERE 1=1
     `;
-    let countQuery = 'SELECT COUNT(*) as total FROM sales s LEFT JOIN customers c ON s.customer_id = c.id WHERE 1=1';
+    let countQuery = `
+      SELECT COUNT(*) as total 
+      FROM sales s 
+      LEFT JOIN customers c ON s.customer_id = c.id 
+      LEFT JOIN users u ON s.staff_id = u.id 
+      LEFT JOIN prescriptions p ON s.prescription_id = p.id 
+      WHERE 1=1
+    `;
     
     const params = [];
     const countParams = [];

@@ -11,6 +11,7 @@ class PrescriptionRepository {
       const colNames = cols.map((c) => c.Field);
 
       const columnsToAdd = [
+        { name: 'prescription_number', type: 'VARCHAR(50) NULL' },
         { name: 'staff_id', type: 'INT NULL' },
         { name: 'od_va', type: "VARCHAR(20) DEFAULT '6/6'" },
         { name: 'os_va', type: "VARCHAR(20) DEFAULT '6/6'" },
@@ -257,7 +258,13 @@ class PrescriptionRepository {
       LEFT JOIN users u ON (p.staff_id = u.id OR (p.staff_id IS NULL AND p.optometrist_id = u.id)) 
       WHERE 1=1
     `;
-    let countQuery = 'SELECT COUNT(*) as total FROM prescriptions p JOIN customers c ON p.customer_id = c.id WHERE 1=1';
+    let countQuery = `
+      SELECT COUNT(*) as total 
+      FROM prescriptions p 
+      JOIN customers c ON p.customer_id = c.id 
+      LEFT JOIN users u ON (p.staff_id = u.id OR (p.staff_id IS NULL AND p.optometrist_id = u.id)) 
+      WHERE 1=1
+    `;
 
     const params = [];
     const countParams = [];
@@ -279,9 +286,9 @@ class PrescriptionRepository {
     if (search) {
       const searchPattern = `%${search}%`;
       query += ' AND (p.prescription_number LIKE ? OR c.first_name LIKE ? OR c.last_name LIKE ? OR c.phone LIKE ? OR u.name LIKE ? OR u.full_name LIKE ?)';
-      countQuery += ' AND (p.prescription_number LIKE ? OR c.first_name LIKE ? OR c.last_name LIKE ? OR c.phone LIKE ?)';
+      countQuery += ' AND (p.prescription_number LIKE ? OR c.first_name LIKE ? OR c.last_name LIKE ? OR c.phone LIKE ? OR u.name LIKE ? OR u.full_name LIKE ?)';
       params.push(searchPattern, searchPattern, searchPattern, searchPattern, searchPattern, searchPattern);
-      countParams.push(searchPattern, searchPattern, searchPattern, searchPattern);
+      countParams.push(searchPattern, searchPattern, searchPattern, searchPattern, searchPattern, searchPattern);
     }
 
     query += ' ORDER BY p.prescription_date DESC, p.created_at DESC LIMIT ? OFFSET ?';
