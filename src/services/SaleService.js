@@ -112,6 +112,7 @@ class SaleService {
       balanceAmount: balDue,
       paymentMethod: paymentMethod || 'cash',
       paymentStatus: finalPaymentStatus,
+      status: 'confirmed',
       notes
     };
 
@@ -169,6 +170,10 @@ class SaleService {
     const currentBalance = parseFloat(sale.balance_amount || 0);
     const currentAdvance = parseFloat(sale.advance_amount || 0);
 
+    if (sale.status === 'cancelled') {
+      throw new CustomError('Cannot collect payment on a cancelled invoice.', 400);
+    }
+
     if (currentBalance <= 0 && sale.payment_status === 'completed') {
       throw new CustomError('This invoice is already fully settled and completed.', 400);
     }
@@ -192,6 +197,23 @@ class SaleService {
     });
 
     return this.getSaleById(saleId);
+  }
+
+  async cancelSale(id, data, staff) {
+    const sale = await SaleRepository.findById(id);
+    if (!sale) {
+      throw new CustomError('Invoice not found.', 404);
+    }
+    if (sale.status === 'cancelled') {
+      throw new CustomError('Invoice is already cancelled.', 400);
+    }
+
+    await SaleRepository.cancelSale(id, {
+      reason: data?.reason,
+      staff
+    });
+
+    return this.getSaleById(id);
   }
 }
 

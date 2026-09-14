@@ -12,5 +12,7 @@ router.post('/checkout', validate(checkoutRules), SaleController.checkout);
 router.get('/', SaleController.getAll);
 router.get('/:id', SaleController.getById);
 router.post('/:id/collect-payment', SaleController.collectPayment);
+router.post('/:id/cancel', SaleController.cancelSale);
+router.patch('/:id/cancel', SaleController.cancelSale);
 
 module.exports = router;

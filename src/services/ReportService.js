@@ -59,13 +59,18 @@ class ReportService {
   async getSalesSummary(filters) {
     const data = await ReportRepository.getSalesSummaryReport(filters);
 
-    const totalOrders = data.length;
-    const totalGross = data.reduce((sum, row) => sum + parseFloat(row.total_amount || 0), 0);
-    const totalDiscount = data.reduce((sum, row) => sum + parseFloat(row.discount_amount || 0), 0);
-    const totalNetSales = data.reduce((sum, row) => sum + parseFloat(row.net_amount || 0), 0);
-    const totalCollected = data.reduce((sum, row) => sum + parseFloat(row.advance_amount || 0), 0);
-    const totalOutstanding = data.reduce((sum, row) => sum + parseFloat(row.balance_amount || 0), 0);
-    const totalUnitsSold = data.reduce((sum, row) => sum + parseInt(row.total_units || 0), 0);
+    // If user filtered specifically by 'cancelled', calculate summary for cancelled
+    // Otherwise, exclude cancelled sales from summary metrics so financial KPIs reflect confirmed sales
+    const isCancelledFilter = filters?.status === 'cancelled';
+    const activeData = isCancelledFilter ? data : data.filter(row => row.status !== 'cancelled');
+
+    const totalOrders = activeData.length;
+    const totalGross = activeData.reduce((sum, row) => sum + parseFloat(row.total_amount || 0), 0);
+    const totalDiscount = activeData.reduce((sum, row) => sum + parseFloat(row.discount_amount || 0), 0);
+    const totalNetSales = activeData.reduce((sum, row) => sum + parseFloat(row.net_amount || 0), 0);
+    const totalCollected = activeData.reduce((sum, row) => sum + parseFloat(row.advance_amount || 0), 0);
+    const totalOutstanding = activeData.reduce((sum, row) => sum + parseFloat(row.balance_amount || 0), 0);
+    const totalUnitsSold = activeData.reduce((sum, row) => sum + parseInt(row.total_units || 0), 0);
     const avgOrderValue = totalOrders > 0 ? totalNetSales / totalOrders : 0;
 
     return {

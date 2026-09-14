@@ -164,6 +164,7 @@ CREATE TABLE IF NOT EXISTS `sales` (
   `balance_amount` DECIMAL(12,2) DEFAULT 0.00,
   `payment_method` VARCHAR(50) NULL,
   `payment_status` VARCHAR(50) DEFAULT 'completed',
+  `status` VARCHAR(50) DEFAULT 'confirmed',
   `notes` TEXT NULL,
   `sale_date` DATETIME DEFAULT CURRENT_TIMESTAMP,
   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

@@ -27,7 +27,7 @@ class ReportRepository {
         MAX(s.sale_date) as last_purchase_date
       FROM sales s
       LEFT JOIN customers c ON s.customer_id = c.id
-      WHERE 1=1
+      WHERE (s.status IS NULL OR s.status != 'cancelled')
     `;
 
     if (branchId) {
@@ -84,7 +84,7 @@ class ReportRepository {
       FROM sale_items si
       JOIN sales s ON si.sale_id = s.id
       JOIN products p ON si.product_id = p.id
-      WHERE 1=1
+      WHERE (s.status IS NULL OR s.status != 'cancelled')
     `;
 
     if (branchId) {
@@ -126,7 +126,7 @@ class ReportRepository {
    * Detailed Sales Transactions Summary Report
    */
   async getSalesSummaryReport(filters = {}) {
-    const { branchId, startDate, endDate, paymentStatus, paymentMethod, search } = filters;
+    const { branchId, startDate, endDate, paymentStatus, paymentMethod, status, search } = filters;
     const params = [];
 
     let query = `
@@ -142,6 +142,7 @@ class ReportRepository {
         s.balance_amount,
         s.payment_method,
         s.payment_status,
+        s.status,
         COALESCE(CONCAT(c.first_name, ' ', COALESCE(c.last_name, '')), 'Walk-in Customer') as customer_name,
         COALESCE(c.phone, 'N/A') as customer_phone,
         COALESCE(u.name, 'Staff') as staff_name,
@@ -181,6 +182,11 @@ class ReportRepository {
     if (paymentMethod && paymentMethod !== 'all') {
       query += ' AND s.payment_method = ?';
       params.push(paymentMethod);
+    }
+
+    if (status && status !== 'all') {
+      query += ' AND s.status = ?';
+      params.push(status);
     }
 
     if (search) {
@@ -418,7 +424,7 @@ class ReportRepository {
         COUNT(CASE WHEN LOWER(s.payment_method) IN ('upi', 'qr', 'online', 'transfer') THEN 1 END) as upi_tx_count,
         COUNT(CASE WHEN LOWER(s.payment_method) = 'cheque' THEN 1 END) as cheque_tx_count
       FROM sales s
-      WHERE 1=1
+      WHERE (s.status IS NULL OR s.status != 'cancelled')
     `;
 
     if (branchId) {

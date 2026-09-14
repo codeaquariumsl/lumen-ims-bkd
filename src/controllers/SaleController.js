@@ -13,7 +13,7 @@ class SaleController {
 
   async getAll(req, res, next) {
     try {
-      const { customerId, startDate, endDate, search, page, limit } = req.query;
+      const { customerId, startDate, endDate, status, search, page, limit } = req.query;
       const branchId = req.user.role === 'admin' ? req.query.branchId : req.user.branchId;
 
       const result = await SaleService.getAllSales({
@@ -21,6 +21,7 @@ class SaleController {
         customerId,
         startDate,
         endDate,
+        status,
         search,
         page,
         limit
@@ -45,6 +46,15 @@ class SaleController {
     try {
       const sale = await SaleService.collectPayment(req.params.id, req.body, req.user);
       return sendResponse(res, 200, true, 'Payment recorded successfully', sale);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async cancelSale(req, res, next) {
+    try {
+      const sale = await SaleService.cancelSale(req.params.id, req.body, req.user);
+      return sendResponse(res, 200, true, 'Sales invoice cancelled successfully', sale);
     } catch (error) {
       next(error);
     }

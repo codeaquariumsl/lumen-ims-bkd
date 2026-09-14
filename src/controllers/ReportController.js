@@ -41,7 +41,7 @@ class ReportController {
 
   async getSalesSummary(req, res, next) {
     try {
-      const { startDate, endDate, paymentStatus, paymentMethod, search } = req.query;
+      const { startDate, endDate, paymentStatus, paymentMethod, status, search } = req.query;
       const branchId = req.user.role === 'admin' ? req.query.branchId : req.user.branchId;
 
       const result = await ReportService.getSalesSummary({
@@ -50,6 +50,7 @@ class ReportController {
         endDate,
         paymentStatus,
         paymentMethod,
+        status,
         search
       });
 

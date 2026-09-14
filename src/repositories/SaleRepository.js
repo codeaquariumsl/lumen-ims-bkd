@@ -22,6 +22,10 @@ class SaleRepository {
       if (!colNames.includes('balance_amount')) {
         await db.query("ALTER TABLE sales ADD COLUMN balance_amount DECIMAL(12,2) DEFAULT 0.00 AFTER advance_amount");
       }
+      if (!colNames.includes('status')) {
+        await db.query("ALTER TABLE sales ADD COLUMN status VARCHAR(50) NOT NULL DEFAULT 'confirmed' AFTER payment_status");
+        await db.query("UPDATE sales SET status = 'confirmed' WHERE status IS NULL OR status = ''");
+      }
 
       const [siCols] = await db.query("SHOW COLUMNS FROM sale_items");
       const siColNames = siCols.map((c) => c.Field);
@@ -72,19 +76,19 @@ class SaleRepository {
         branchId, customerId, prescriptionId, staffId, invoiceNumber,
         totalAmount, taxAmount, discountAmount, netAmount,
         prescriptionCharges, advanceAmount, balanceAmount,
-        paymentMethod, paymentStatus, notes
+        paymentMethod, paymentStatus, status, notes
       } = sale;
 
-      // 1. Insert into sales table with prescription & advance payment columns
+      // 1. Insert into sales table with prescription, advance payment & status columns
       const [result] = await conn.query(
         `INSERT INTO sales 
-         (branch_id, customer_id, prescription_id, staff_id, invoice_number, total_amount, tax_amount, discount_amount, net_amount, prescription_charges, advance_amount, balance_amount, payment_method, payment_status, notes) 
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         (branch_id, customer_id, prescription_id, staff_id, invoice_number, total_amount, tax_amount, discount_amount, net_amount, prescription_charges, advance_amount, balance_amount, payment_method, payment_status, status, notes) 
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           branchId, customerId || null, prescriptionId || null, staffId, invoiceNumber,
           totalAmount, taxAmount || 0, discountAmount || 0, netAmount,
           prescriptionCharges || 0, advanceAmount || 0, balanceAmount || 0,
-          paymentMethod || 'cash', paymentStatus || 'completed', notes || null
+          paymentMethod || 'cash', paymentStatus || 'completed', status || 'confirmed', notes || null
         ]
       );
       const saleId = result.insertId;
@@ -139,7 +143,7 @@ class SaleRepository {
   }
 
   async getAll(filters = {}) {
-    const { branchId, customerId, startDate, endDate, search, limit = 10, offset = 0 } = filters;
+    const { branchId, customerId, startDate, endDate, status, search, limit = 10, offset = 0 } = filters;
     let query = `
       SELECT s.*, 
              c.first_name, c.last_name, c.phone as customer_phone,
@@ -191,6 +195,13 @@ class SaleRepository {
       countParams.push(endDate + ' 23:59:59');
     }
 
+    if (status && status !== 'all') {
+      query += ' AND s.status = ?';
+      countQuery += ' AND s.status = ?';
+      params.push(status);
+      countParams.push(status);
+    }
+
     if (search) {
       const searchPattern = `%${search}%`;
       query += ' AND (s.invoice_number LIKE ? OR c.first_name LIKE ? OR c.last_name LIKE ? OR p.prescription_number LIKE ?)';
@@ -228,6 +239,92 @@ class SaleRepository {
       [advanceAmount, balanceAmount, paymentStatus, paymentMethod, notes, id]
     );
     return this.findById(id);
+  }
+
+  async cancelSale(id, { reason, staff }) {
+    const conn = await db.getConnection();
+    try {
+      await conn.beginTransaction();
+
+      // 1. Get current sale record
+      const [sales] = await conn.query('SELECT * FROM sales WHERE id = ? FOR UPDATE', [id]);
+      if (!sales || sales.length === 0) {
+        throw new Error('Invoice not found.');
+      }
+      const sale = sales[0];
+      if (sale.status === 'cancelled') {
+        throw new Error('Invoice is already cancelled.');
+      }
+
+      // 2. Fetch all sale items to restore stock
+      const [items] = await conn.query('SELECT * FROM sale_items WHERE sale_id = ?', [id]);
+
+      // 3. Restore inventory quantity for each item
+      for (const item of items) {
+        const [invRows] = await conn.query(
+          'SELECT id, quantity FROM inventory WHERE product_id = ? AND branch_id = ? FOR UPDATE',
+          [item.product_id, sale.branch_id]
+        );
+
+        if (invRows.length > 0) {
+          await conn.query(
+            'UPDATE inventory SET quantity = quantity + ?, last_updated = CURRENT_TIMESTAMP WHERE id = ?',
+            [item.quantity, invRows[0].id]
+          );
+        } else {
+          await conn.query(
+            'INSERT INTO inventory (branch_id, product_id, quantity) VALUES (?, ?, ?)',
+            [sale.branch_id, item.product_id, item.quantity]
+          );
+        }
+      }
+
+      // 4. Reduce customer's total_spent if linked
+      if (sale.customer_id) {
+        await conn.query(
+          `UPDATE customers 
+           SET total_spent = GREATEST(0, total_spent - ?) 
+           WHERE id = ?`,
+          [parseFloat(sale.net_amount || 0), sale.customer_id]
+        );
+      }
+
+      // 5. Append cancel note
+      const cancelDate = new Date().toLocaleString('en-IN');
+      const cancelLog = `[${cancelDate}] Invoice CANCELLED by ${staff?.name || 'Staff'}${reason ? `: ${reason}` : ''}`;
+      const updatedNotes = sale.notes ? `${sale.notes}\n${cancelLog}` : cancelLog;
+
+      // 6. Update sale status to cancelled
+      await conn.query(
+        'UPDATE sales SET status = ?, notes = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+        ['cancelled', updatedNotes, id]
+      );
+
+      // 7. Audit log if table exists
+      try {
+        await conn.query(
+          'INSERT INTO audit_logs (user_id, branch_id, action, entity_type, entity_id, changes) VALUES (?, ?, ?, ?, ?, ?)',
+          [
+            staff?.id || null,
+            sale.branch_id,
+            'CANCEL_SALE',
+            'sales',
+            String(id),
+            JSON.stringify({ invoiceNumber: sale.invoice_number, netAmount: sale.net_amount, reason: reason || 'N/A' })
+          ]
+        );
+      } catch (logErr) {
+        console.warn('Audit log insert skipped:', logErr.message);
+      }
+
+      await conn.commit();
+      return this.findById(id);
+    } catch (error) {
+      await conn.rollback();
+      throw error;
+    } finally {
+      conn.release();
+    }
   }
 }
 

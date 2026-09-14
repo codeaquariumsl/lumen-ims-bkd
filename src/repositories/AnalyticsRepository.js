@@ -3,7 +3,7 @@ const db = require('../config/database');
 class AnalyticsRepository {
   async getDashboardSummary(branchId) {
     const params = [];
-    let salesQuery = 'SELECT COALESCE(SUM(net_amount), 0) as totalRevenue, COUNT(*) as totalSalesCount FROM sales WHERE 1=1';
+    let salesQuery = "SELECT COALESCE(SUM(net_amount), 0) as totalRevenue, COUNT(*) as totalSalesCount FROM sales WHERE (status IS NULL OR status != 'cancelled')";
     let customerQuery = 'SELECT COUNT(*) as totalCustomers FROM customers WHERE 1=1';
     let lowStockQuery = `
       SELECT COUNT(*) as lowStockCount 
@@ -60,7 +60,7 @@ class AnalyticsRepository {
     let query = `
       SELECT DATE_FORMAT(sale_date, '%Y-%m-%d') as name, COALESCE(SUM(net_amount), 0) as sales 
       FROM sales 
-      WHERE sale_date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
+      WHERE sale_date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY) AND (status IS NULL OR status != 'cancelled')
     `;
     const params = [];
 
@@ -94,7 +94,7 @@ class AnalyticsRepository {
       FROM sale_items si 
       JOIN products p ON si.product_id = p.id 
       JOIN sales s ON si.sale_id = s.id 
-      WHERE 1=1
+      WHERE (s.status IS NULL OR s.status != 'cancelled')
     `;
     const params = [];
 
@@ -121,6 +121,7 @@ class AnalyticsRepository {
       LEFT JOIN sale_items si ON s.id = si.sale_id
       LEFT JOIN products p ON si.product_id = p.id
       WHERE s.sale_date >= DATE_SUB(CURDATE(), INTERVAL 6 MONTH)
+        AND (s.status IS NULL OR s.status != 'cancelled')
     `;
     if (branchId) {
       query += ' AND s.branch_id = ?';
@@ -180,6 +181,7 @@ class AnalyticsRepository {
         COUNT(*) as salesCount
       FROM sales
       WHERE sale_date >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
+        AND (status IS NULL OR status != 'cancelled')
     `;
     if (branchId) {
       query += ' AND branch_id = ?';
@@ -203,6 +205,7 @@ class AnalyticsRepository {
       LEFT JOIN (
         SELECT customer_id, COUNT(*) as cnt 
         FROM sales 
+        WHERE (status IS NULL OR status != 'cancelled')
         GROUP BY customer_id
       ) sales_cnt ON c.id = sales_cnt.customer_id
       WHERE 1=1
@@ -227,6 +230,7 @@ class AnalyticsRepository {
         SELECT customer_id, COUNT(*) as sales_cnt 
         FROM sales 
         WHERE customer_id IS NOT NULL
+          AND (status IS NULL OR status != 'cancelled')
     `;
     if (branchId) {
       query += ' AND branch_id = ?';
