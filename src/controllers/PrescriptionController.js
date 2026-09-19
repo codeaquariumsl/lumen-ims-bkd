@@ -4,13 +4,14 @@ const { sendResponse } = require('../utils/response');
 class PrescriptionController {
   async getAll(req, res, next) {
     try {
-      const { search, customerId, page, limit } = req.query;
+      const { search, customerId, prescriptionType, type, page, limit } = req.query;
       const branchId = req.user.role === 'admin' ? req.query.branchId : req.user.branchId;
 
       const result = await PrescriptionService.getAllPrescriptions({
         branchId,
         customerId,
         search,
+        prescriptionType: prescriptionType || type,
         page,
         limit
       });

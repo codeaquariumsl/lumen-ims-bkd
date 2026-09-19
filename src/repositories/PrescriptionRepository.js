@@ -246,7 +246,7 @@ class PrescriptionRepository {
   }
 
   async getAll(filters = {}) {
-    const { branchId, customerId, search, limit = 10, offset = 0 } = filters;
+    const { branchId, customerId, search, prescriptionType, type, limit = 10, offset = 0 } = filters;
     let query = `
       SELECT p.*, c.first_name, c.last_name, c.phone as customer_phone, c.address, c.city,
              COALESCE(u.full_name, u.name) as optometrist_name,
@@ -281,6 +281,14 @@ class PrescriptionRepository {
       countQuery += ' AND p.customer_id = ?';
       params.push(customerId);
       countParams.push(customerId);
+    }
+
+    const finalType = prescriptionType || type;
+    if (finalType && finalType !== 'all') {
+      query += ' AND p.prescription_type = ?';
+      countQuery += ' AND p.prescription_type = ?';
+      params.push(finalType);
+      countParams.push(finalType);
     }
 
     if (search) {
