@@ -13,7 +13,7 @@ class SaleController {
 
   async getAll(req, res, next) {
     try {
-      const { customerId, startDate, endDate, status, search, page, limit } = req.query;
+      const { customerId, startDate, endDate, status, paymentStatus, search, page, limit } = req.query;
       const branchId = req.user.role === 'admin' ? req.query.branchId : req.user.branchId;
 
       const result = await SaleService.getAllSales({
@@ -22,6 +22,7 @@ class SaleController {
         startDate,
         endDate,
         status,
+        paymentStatus,
         search,
         page,
         limit

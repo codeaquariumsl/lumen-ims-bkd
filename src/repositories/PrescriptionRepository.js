@@ -51,19 +51,19 @@ class PrescriptionRepository {
     const d = dateStr ? new Date(dateStr) : new Date();
     const yy = d.getFullYear().toString().slice(-2);
     const mm = String(d.getMonth() + 1).padStart(2, '0');
-    const prefix = `${yy}${mm}`; // e.g. "2607"
+    const prefix = `${yy}${mm}`; // e.g. "2609"
 
+    // Fetch the latest prescription to continue the running sequence without monthly reset
     const [rows] = await db.query(
       `SELECT prescription_number FROM prescriptions 
-       WHERE prescription_number LIKE ? 
-       ORDER BY prescription_number DESC LIMIT 1`,
-      [`${prefix}%`]
+       WHERE prescription_number IS NOT NULL AND prescription_number != '' 
+       ORDER BY id DESC LIMIT 1`
     );
 
     let nextSeq = 1;
     if (rows.length > 0 && rows[0].prescription_number) {
-      const lastNum = String(rows[0].prescription_number);
-      const seqPart = lastNum.slice(4); // digits after YYMM
+      const lastNum = String(rows[0].prescription_number).trim();
+      const seqPart = lastNum.length >= 5 ? lastNum.slice(4) : lastNum;
       const parsed = parseInt(seqPart, 10);
       if (!isNaN(parsed)) {
         nextSeq = parsed + 1;
@@ -71,7 +71,7 @@ class PrescriptionRepository {
     }
 
     const seqStr = String(nextSeq).padStart(4, '0');
-    return `${prefix}${seqStr}`; // e.g. "26070001"
+    return `${prefix}${seqStr}`; // e.g. "26090001", "26100002"
   }
 
   async findById(id) {

@@ -143,7 +143,7 @@ class SaleRepository {
   }
 
   async getAll(filters = {}) {
-    const { branchId, customerId, startDate, endDate, status, search, limit = 10, offset = 0 } = filters;
+    const { branchId, customerId, startDate, endDate, status, paymentStatus, search, limit = 10, offset = 0 } = filters;
     let query = `
       SELECT s.*, 
              c.first_name, c.last_name, c.phone as customer_phone,
@@ -200,6 +200,21 @@ class SaleRepository {
       countQuery += ' AND s.status = ?';
       params.push(status);
       countParams.push(status);
+    }
+
+    if (paymentStatus && paymentStatus !== 'all') {
+      if (paymentStatus === 'partial' || paymentStatus === 'advance') {
+        query += " AND s.payment_status IN ('partial', 'advance')";
+        countQuery += " AND s.payment_status IN ('partial', 'advance')";
+      } else if (paymentStatus === 'unpaid' || paymentStatus === 'pending') {
+        query += " AND s.payment_status IN ('unpaid', 'pending')";
+        countQuery += " AND s.payment_status IN ('unpaid', 'pending')";
+      } else {
+        query += ' AND s.payment_status = ?';
+        countQuery += ' AND s.payment_status = ?';
+        params.push(paymentStatus);
+        countParams.push(paymentStatus);
+      }
     }
 
     if (search) {
