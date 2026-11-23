@@ -126,6 +126,27 @@ class ReportController {
       next(error);
     }
   }
+
+  async getSalesProfit(req, res, next) {
+    try {
+      const { startDate, endDate, category, paymentStatus, paymentMethod, search } = req.query;
+      const branchId = req.user.role === 'admin' ? req.query.branchId : req.user.branchId;
+
+      const result = await ReportService.getSalesProfitReport({
+        branchId,
+        startDate,
+        endDate,
+        category,
+        paymentStatus,
+        paymentMethod,
+        search
+      });
+
+      return sendResponse(res, 200, true, 'Sales profit report generated successfully', result);
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 module.exports = new ReportController();

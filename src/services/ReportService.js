@@ -213,6 +213,87 @@ class ReportService {
       records: data
     };
   }
+
+  /**
+   * Sales Profit Report with calculated financial KPIs, invoice breakdown & daily trends
+   */
+  async getSalesProfitReport(filters) {
+    const [invoiceRecords, dailyTrends, itemRecords] = await Promise.all([
+      ReportRepository.getSalesProfitReport(filters),
+      ReportRepository.getSalesProfitDailyTrend(filters),
+      ReportRepository.getItemWiseSalesReport(filters)
+    ]);
+
+    const totalInvoices = invoiceRecords.length;
+    const totalUnitsSold = invoiceRecords.reduce((sum, row) => sum + parseInt(row.total_units || 0), 0);
+    const totalSalesAmount = invoiceRecords.reduce((sum, row) => sum + parseFloat(row.sales_amount || 0), 0);
+    const totalCostAmount = invoiceRecords.reduce((sum, row) => sum + parseFloat(row.total_cost || 0), 0);
+    const totalGrossProfit = totalSalesAmount - totalCostAmount;
+    const overallMargin = totalSalesAmount > 0 ? (totalGrossProfit / totalSalesAmount) * 100 : 0;
+    const avgProfitPerInvoice = totalInvoices > 0 ? totalGrossProfit / totalInvoices : 0;
+    const avgSalesPerInvoice = totalInvoices > 0 ? totalSalesAmount / totalInvoices : 0;
+
+    const parsedRecords = invoiceRecords.map(r => {
+      let items = [];
+      if (r.items_json) {
+        try {
+          items = typeof r.items_json === 'string' ? JSON.parse(r.items_json) : r.items_json;
+        } catch {
+          items = [];
+        }
+      }
+      return {
+        ...r,
+        sales_amount: parseFloat(r.sales_amount || 0),
+        gross_amount: parseFloat(r.gross_amount || 0),
+        discount_amount: parseFloat(r.discount_amount || 0),
+        prescription_charges: parseFloat(r.prescription_charges || 0),
+        paid_amount: parseFloat(r.paid_amount || 0),
+        balance_amount: parseFloat(r.balance_amount || 0),
+        total_units: parseInt(r.total_units || 0),
+        total_items: parseInt(r.total_items || 0),
+        total_cost: parseFloat(r.total_cost || 0),
+        gross_profit: parseFloat(r.gross_profit || 0),
+        profit_margin_percentage: parseFloat(r.profit_margin_percentage || 0),
+        items: Array.isArray(items) ? items : []
+      };
+    });
+
+    return {
+      summary: {
+        totalInvoices,
+        totalUnitsSold,
+        totalSalesAmount,
+        totalCostAmount,
+        totalGrossProfit,
+        overallMargin,
+        avgProfitPerInvoice,
+        avgSalesPerInvoice
+      },
+      records: parsedRecords,
+      dailyTrends: dailyTrends.map(t => ({
+        date: t.date,
+        invoices_count: parseInt(t.invoices_count || 0),
+        total_sales: parseFloat(t.total_sales || 0),
+        total_cost: parseFloat(t.total_cost || 0),
+        gross_profit: parseFloat(t.gross_profit || 0),
+        profit_margin: parseFloat(t.profit_margin || 0)
+      })),
+      itemRecords: itemRecords.map(item => ({
+        ...item,
+        cost_price: parseFloat(item.cost_price || 0),
+        quantity_sold: parseInt(item.quantity_sold || 0),
+        avg_unit_price: parseFloat(item.avg_unit_price || 0),
+        total_discount: parseFloat(item.total_discount || 0),
+        total_revenue: parseFloat(item.total_revenue || 0),
+        total_cost: parseFloat(item.total_cost || 0),
+        gross_profit: parseFloat(item.gross_profit || 0),
+        margin_percentage: parseFloat(item.total_revenue) > 0 
+          ? (parseFloat(item.gross_profit) / parseFloat(item.total_revenue)) * 100 
+          : 0
+      }))
+    };
+  }
 }
 
 module.exports = new ReportService();

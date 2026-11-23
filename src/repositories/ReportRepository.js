@@ -455,6 +455,184 @@ class ReportRepository {
     const [rows] = await db.query(query, params);
     return rows;
   }
+
+  /**
+   * Sales Profit Report (Invoice-wise profit calculation with line item details)
+   * Calculates profit = Sales Amount (net_amount) - Total Cost (sum of quantity * item cost_price)
+   */
+  async getSalesProfitReport(filters = {}) {
+    const { branchId, startDate, endDate, category, paymentStatus, paymentMethod, search } = filters;
+    const params = [];
+
+    let query = `
+      SELECT 
+        s.id as sale_id,
+        s.invoice_number,
+        s.sale_date,
+        s.total_amount as gross_amount,
+        s.discount_amount,
+        s.prescription_charges,
+        s.net_amount as sales_amount,
+        s.advance_amount as paid_amount,
+        s.balance_amount,
+        s.payment_status,
+        s.payment_method,
+        s.status,
+        COALESCE(CONCAT(c.first_name, ' ', COALESCE(c.last_name, '')), 'Walk-in Customer') as customer_name,
+        COALESCE(c.phone, 'N/A') as customer_phone,
+        COALESCE(u.name, 'Staff') as staff_name,
+        COALESCE(items_calc.total_units, 0) as total_units,
+        COALESCE(items_calc.total_items, 0) as total_items,
+        COALESCE(items_calc.total_cost, 0) as total_cost,
+        (s.net_amount - COALESCE(items_calc.total_cost, 0)) as gross_profit,
+        CASE 
+          WHEN s.net_amount > 0 THEN ROUND(((s.net_amount - COALESCE(items_calc.total_cost, 0)) / s.net_amount) * 100, 2)
+          ELSE 0
+        END as profit_margin_percentage,
+        items_calc.items_json
+      FROM sales s
+      LEFT JOIN (
+        SELECT 
+          si.sale_id,
+          SUM(si.quantity) as total_units,
+          COUNT(si.id) as total_items,
+          SUM(si.quantity * COALESCE(p.cost_price, 0)) as total_cost,
+          JSON_ARRAYAGG(
+            JSON_OBJECT(
+              'product_id', p.id,
+              'product_code', p.code,
+              'product_name', p.name,
+              'category', p.category,
+              'quantity', si.quantity,
+              'unit_price', si.unit_price,
+              'cost_price', COALESCE(p.cost_price, 0),
+              'discount_amount', COALESCE(si.discount_amount, 0),
+              'line_total', si.line_total,
+              'item_cost', (si.quantity * COALESCE(p.cost_price, 0)),
+              'item_profit', (si.line_total - (si.quantity * COALESCE(p.cost_price, 0))),
+              'margin_percentage', CASE 
+                WHEN si.line_total > 0 THEN ROUND(((si.line_total - (si.quantity * COALESCE(p.cost_price, 0))) / si.line_total) * 100, 2)
+                ELSE 0
+              END
+            )
+          ) as items_json
+        FROM sale_items si
+        JOIN products p ON si.product_id = p.id
+        GROUP BY si.sale_id
+      ) items_calc ON s.id = items_calc.sale_id
+      LEFT JOIN customers c ON s.customer_id = c.id
+      LEFT JOIN users u ON s.staff_id = u.id
+      WHERE (s.status IS NULL OR s.status != 'cancelled')
+    `;
+
+    if (branchId) {
+      query += ' AND s.branch_id = ?';
+      params.push(branchId);
+    }
+
+    if (startDate) {
+      query += ' AND s.sale_date >= ?';
+      params.push(startDate);
+    }
+
+    if (endDate) {
+      query += ' AND s.sale_date <= ?';
+      params.push(endDate + ' 23:59:59');
+    }
+
+    if (paymentStatus && paymentStatus !== 'all') {
+      query += ' AND s.payment_status = ?';
+      params.push(paymentStatus);
+    }
+
+    if (paymentMethod && paymentMethod !== 'all') {
+      query += ' AND LOWER(s.payment_method) = ?';
+      params.push(paymentMethod.toLowerCase());
+    }
+
+    if (category && category !== 'all') {
+      query += ` AND s.id IN (
+        SELECT DISTINCT si2.sale_id 
+        FROM sale_items si2 
+        JOIN products p2 ON si2.product_id = p2.id 
+        WHERE p2.category = ?
+      )`;
+      params.push(category);
+    }
+
+    if (search) {
+      const searchPattern = `%${search}%`;
+      query += ' AND (s.invoice_number LIKE ? OR c.first_name LIKE ? OR c.last_name LIKE ? OR c.phone LIKE ?)';
+      params.push(searchPattern, searchPattern, searchPattern, searchPattern);
+    }
+
+    query += ' ORDER BY s.sale_date DESC';
+
+    const [rows] = await db.query(query, params);
+    return rows;
+  }
+
+  /**
+   * Daily sales profit trends for charts
+   */
+  async getSalesProfitDailyTrend(filters = {}) {
+    const { branchId, startDate, endDate, category } = filters;
+    const params = [];
+
+    let query = `
+      SELECT 
+        DATE(s.sale_date) as date,
+        COUNT(s.id) as invoices_count,
+        COALESCE(SUM(s.net_amount), 0) as total_sales,
+        COALESCE(SUM(item_costs.total_cost), 0) as total_cost,
+        COALESCE(SUM(s.net_amount) - SUM(item_costs.total_cost), 0) as gross_profit,
+        CASE 
+          WHEN SUM(s.net_amount) > 0 THEN ROUND(((SUM(s.net_amount) - SUM(item_costs.total_cost)) / SUM(s.net_amount)) * 100, 2)
+          ELSE 0
+        END as profit_margin
+      FROM sales s
+      LEFT JOIN (
+        SELECT si.sale_id, SUM(si.quantity * COALESCE(p.cost_price, 0)) as total_cost
+        FROM sale_items si
+        JOIN products p ON si.product_id = p.id
+        GROUP BY si.sale_id
+      ) item_costs ON s.id = item_costs.sale_id
+      WHERE (s.status IS NULL OR s.status != 'cancelled')
+    `;
+
+    if (branchId) {
+      query += ' AND s.branch_id = ?';
+      params.push(branchId);
+    }
+
+    if (startDate) {
+      query += ' AND s.sale_date >= ?';
+      params.push(startDate);
+    }
+
+    if (endDate) {
+      query += ' AND s.sale_date <= ?';
+      params.push(endDate + ' 23:59:59');
+    }
+
+    if (category && category !== 'all') {
+      query += ` AND s.id IN (
+        SELECT DISTINCT si2.sale_id 
+        FROM sale_items si2 
+        JOIN products p2 ON si2.product_id = p2.id 
+        WHERE p2.category = ?
+      )`;
+      params.push(category);
+    }
+
+    query += `
+      GROUP BY DATE(s.sale_date)
+      ORDER BY date ASC
+    `;
+
+    const [rows] = await db.query(query, params);
+    return rows;
+  }
 }
 
 module.exports = new ReportRepository();

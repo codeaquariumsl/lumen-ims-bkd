@@ -8,6 +8,7 @@ const router = express.Router();
 router.use(protect);
 
 // Sales Reports
+router.get('/sales/profit', ReportController.getSalesProfit);
 router.get('/sales/customer-wise', ReportController.getCustomerWiseSales);
 router.get('/sales/item-wise', ReportController.getItemWiseSales);
 router.get('/sales/summary', ReportController.getSalesSummary);
